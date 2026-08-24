@@ -58,7 +58,7 @@ The popular existing libraries are typically built on an **event/subscription** 
 
 Modern .NET applications already use **System.Reactive** (Rx.NET) for UI binding, telemetry,
 message-bus plumbing, and stream processing. RxStateMachine takes a **different approach**: the state
-machine is *natively* observable, so it composes directly with that ecosystem — no adapters, no
+machine is _natively_ observable, so it composes directly with that ecosystem — no adapters, no
 manual `Subject` wiring, no missed updates — while keeping the familiar fluent configuration style
 that state machine users expect. The aim is to simplify reactive usage and support complex async
 scenarios.
@@ -73,14 +73,14 @@ want, while fully enabling them when they do.
 
 **What this gives us (benefits):**
 
-| Benefit | What it means |
-|---|---|
-| Natural async side effects | Complex async work (I/O, retries, database calls) is written with plain `async`/`await` in entry/exit/transition actions — not `SelectMany` spaghetti or race-prone pipelines. |
-| Readable debugging | Standard C# stack traces in the core, not deep Rx pipelines and scheduler forensics. |
-| First-class guards & errors | Guard logic and error handling are explicit, with clear policies and rich error objects. |
-| Explicit state ownership | The current state is owned by the machine in one place, not derived from event-stream history; no parallel copies to drift. |
-| Seamless reactive consumption | UI / telemetry / persistence binding is plain LINQ over the exposed streams. |
-| Consumer-side time operators | Debounce, throttle, and timer operators compose on the consumer side of the streams, with helper APIs for timers. |
+| Benefit                       | What it means                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Natural async side effects    | Complex async work (I/O, retries, database calls) is written with plain `async`/`await` in entry/exit/transition actions — not `SelectMany` spaghetti or race-prone pipelines. |
+| Readable debugging            | Standard C# stack traces in the core, not deep Rx pipelines and scheduler forensics.                                                                                           |
+| First-class guards & errors   | Guard logic and error handling are explicit, with clear policies and rich error objects.                                                                                       |
+| Explicit state ownership      | The current state is owned by the machine in one place, not derived from event-stream history; no parallel copies to drift.                                                    |
+| Seamless reactive consumption | UI / telemetry / persistence binding is plain LINQ over the exposed streams.                                                                                                   |
+| Consumer-side time operators  | Debounce, throttle, and timer operators compose on the consumer side of the streams, with helper APIs for timers.                                                              |
 
 **Caveats to be aware of:**
 
@@ -92,7 +92,7 @@ want, while fully enabling them when they do.
 
 > ---
 >
-> **What "stream-reduction" means here.** In functional programming, *reduce* / *fold* collapses a
+> **What "stream-reduction" means here.** In functional programming, _reduce_ / _fold_ collapses a
 > sequence into a single accumulated value by repeatedly applying a combining function — Rx's `Scan`
 > is the incremental version, emitting the running accumulator after each input:
 >
@@ -120,7 +120,7 @@ want, while fully enabling them when they do.
 >
 > RxStateMachine is not built this way (see the §5.4 design note). The current state is **owned
 > explicitly** by the transition engine, which runs guards, entry/exit actions, async work, and
-> validation; the observable streams are *outputs* of that engine — not a fold recomputed from
+> validation; the observable streams are _outputs_ of that engine — not a fold recomputed from
 > trigger history on every emission.
 >
 > ---
@@ -162,13 +162,13 @@ want, while fully enabling them when they do.
 
 ### 4.3 Non-goals (explicitly out of scope)
 
-- Not a visual designer / diagramming tool (visualization *export* is in scope later; a visual editor
+- Not a visual designer / diagramming tool (visualization _export_ is in scope later; a visual editor
   is not).
 - Not a long-running workflow engine with built-in scheduling/compensation (though saga-style usage
   with persistence is supported).
 - Not tied to any DI container, ORM, or messaging framework (integration examples only).
 - Not a code generator (no source-generated state machines; see §14.4).
-- Not a replacement for Rx itself; we build *on* System.Reactive, not re-implement it.
+- Not a replacement for Rx itself; we build _on_ System.Reactive, not re-implement it.
 
 ---
 
@@ -213,8 +213,8 @@ flowchart LR
     P --> D4
 ```
 
-- **Producer side (outputs):** the machine exposes streams for *current state*, *transitions*, *guard
-  results*, *permitted triggers*, and *errors*.
+- **Producer side (outputs):** the machine exposes streams for _current state_, _transitions_, _guard
+  results_, _permitted triggers_, and _errors_.
 - **Consumer side (inputs):** triggers arrive either imperatively (`Fire(...)`) or by piping an
   upstream observable into the machine (e.g., `messageBus.Observe<OrderEvent>().Subscribe(machine)`).
 
@@ -241,15 +241,15 @@ The machine is **both** a producer and a consumer:
 
 ### 5.3 Streams the machine exposes (v1)
 
-| Stream | Type | Semantics |
-|---|---|---|
-| Current state | `IObservable<TState>` (machine itself) | Hot, replays last (`BehaviorSubject`-backed) so late subscribers get the current state |
-| State changed | `IObservable<StateChange<TState>>` | `Previous`, `Current`, `Timestamp`, `IsReentry`, `IsInternal` |
-| Transition | `IObservable<Transition<TState,TTrigger>>` | `Source`, `Destination`, `Trigger`, payload, kind, duration |
-| Transition completed | `IObservable<Transition<TState,TTrigger>>` | Fired after the last entry action completes |
-| Guard result | `IObservable<GuardResult<TState,TTrigger>>` | Every guard evaluation (for logging, tests, and "why blocked?" UI) |
-| Permitted triggers | `IObservable<PermittedTriggers<TState,TTrigger>>` | Re-emitted when the state changes; also queryable via `GetPermittedTriggers()` |
-| Errors | `IObservable<StateMachineError>` | Unhandled triggers, guard/action exceptions, configuration errors (depending on policy) |
+| Stream               | Type                                              | Semantics                                                                               |
+| -------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Current state        | `IObservable<TState>` (machine itself)            | Hot, replays last (`BehaviorSubject`-backed) so late subscribers get the current state  |
+| State changed        | `IObservable<StateChange<TState>>`                | `Previous`, `Current`, `Timestamp`, `IsReentry`, `IsInternal`                           |
+| Transition           | `IObservable<Transition<TState,TTrigger>>`        | `Source`, `Destination`, `Trigger`, payload, kind, duration                             |
+| Transition completed | `IObservable<Transition<TState,TTrigger>>`        | Fired after the last entry action completes                                             |
+| Guard result         | `IObservable<GuardResult<TState,TTrigger>>`       | Every guard evaluation (for logging, tests, and "why blocked?" UI)                      |
+| Permitted triggers   | `IObservable<PermittedTriggers<TState,TTrigger>>` | Re-emitted when the state changes; also queryable via `GetPermittedTriggers()`          |
+| Errors               | `IObservable<StateMachineError>`                  | Unhandled triggers, guard/action exceptions, configuration errors (depending on policy) |
 
 ### 5.4 Worked examples
 
@@ -328,9 +328,27 @@ scenarios.
    entered state, firing / fired event, guard/action exceptions); persistence of current state +
    queued events + history; reporting.
 3. Saga-style usage; scheduling / timeouts (`Schedule` / `Publish`); state-machine-as-persistence-
-   subject; correlation.
+   subject; correlation. (Saga _orchestration_ is a future consideration — see §6.2.)
 4. Persistence-first design for long-running workflows; we support snapshot persistence without full
    long-running workflow orchestration.
+
+### 6.2 Future consideration — Saga orchestration
+
+Saga-style usage is a **supported pattern** (UC-8) — machines can be composed with snapshot
+persistence, timeouts, and correlation to act as saga participants. What is **not** in scope is a
+_built-in saga orchestration engine_: automatic compensation/undo, a distributed coordinator, or a
+long-running workflow engine (§4.3).
+
+**Open question / future consideration:** if a saga layer is ever added, the working assumption is
+that it ships as a **separate companion library** built _on top of_ RxStateMachine — providing the
+orchestration, compensation, and coordination glue — rather than growing the core machine. No
+decision has been made; this stays off the v1 roadmap.
+
+**Exploration plan (hand-rolled examples):** to inform that decision, hand-roll a few saga examples
+directly against RxStateMachine before committing to a design — e.g., an order-fulfilment saga that
+spans multiple machines and, on failure, compensates by firing `Cancel` / `Refund` / `Rollback`
+transitions. Goal: get a feel for how orchestration looks in practice, which ergonomics are missing
+from the core, and whether the friction justifies a dedicated library.
 
 ---
 
@@ -339,8 +357,9 @@ scenarios.
 ### 7.1 Functional requirements (v1 = Core, phased by §9)
 
 #### Configuration & core semantics
+
 - **FR-1** Generic over `TState` and `TTrigger` — any .NET type (enum, record, string, int, custom
-  class). 
+  class).
 - **FR-2** Fluent builder: `Configure(TState)` returning a configuration object with
   `Permit`, `PermitIf`, `PermitReentry`, `InternalTransition`, and dynamic destination selectors.
 - **FR-3** Entry actions (`OnEntry`), exit actions (`OnExit`), trigger-specific entry actions
@@ -358,6 +377,7 @@ scenarios.
   messages.
 
 #### Observable surface
+
 - **FR-11** Machine implements `IObservable<TState>`; hot, replays last (late subscribers get current
   state immediately).
 - **FR-12** Rich streams from §5.3: `StateChange<TState>`, `Transition<TState,TTrigger>`,
@@ -371,6 +391,7 @@ scenarios.
   stream themselves.
 
 #### Introspection & diagnostics
+
 - **FR-16** `GetPermittedTriggers()` / async variant, honoring guards.
 - **FR-17** `GetInfo()` / `StateMachineInfo` describing states, transitions, guards, and action
   metadata — the basis for diagnostics and graph export.
@@ -378,11 +399,13 @@ scenarios.
   this transition blocked?").
 
 #### Error handling & policies
+
 - **FR-19** Unhandled-trigger policy: `Throw` (default), `Ignore`, or `Observe` (push to error
   stream). Same policy set for exceptions thrown in guards and actions.
 - **FR-20** `OnTransitioned`-style lifecycle events with unsubscribe support.
 
 #### External state / persistence (M2)
+
 - **FR-21** External state storage via `Func<TState> stateAccessor` / `Action<TState> stateMutator`
   so state can live in an ORM entity.
 - **FR-22** Snapshot persistence: serialize current state, active substate history, and (in queued
@@ -391,20 +414,24 @@ scenarios.
   `machine.Subscribe(state => repository.Save(instanceId, state))` — no special API required.
 
 #### Timers & timeouts (M2, Rx-native)
+
 - **FR-24** Helpers to trigger transitions from timers/delays (`Observable.Timer(...).Subscribe(machine)`),
   plus convenience API for common patterns: "after N in state X, fire trigger Y" with automatic
   subscription cancellation when the state is left.
 
 #### Hierarchical states (M2)
+
 - **FR-25** `SubstateOf(superstate)`, `InitialTransitionTarget`, history types `None/Shallow/Deep`.
 - **FR-26** `IsInState(superstate)` returns true when in any substate; superstate exit/entry actions
   run at the correct points in the nesting.
 
 #### Visualization & reporting (M3)
+
 - **FR-27** Export configuration to **Mermaid** and **D2** for docs/PRs.
 - **FR-28** Optional textual report of states/transitions/actions.
 
 #### API identity & baseline surface
+
 - **FR-29** Package / product name: **`RxStateMachine`**.
 - **FR-30** `Fire`/`FireAsync` **return the resulting `Transition`** — sync
   `Transition<TState,TTrigger>`, async `Task<Transition<TState,TTrigger>>` — for fluent/assertive
@@ -452,18 +479,18 @@ These scenarios span the domains our consumers actually build. Each maps to conc
 treats these as the **definition of "most, if not all, business requirements"** — if a new requirement
 looks like one of these, the framework covers it.
 
-| # | Use case | Domain | Key framework features exercised |
-|---|---|---|---|
-| UC-1 | **Order / checkout lifecycle** | E‑commerce | Basic permits, guards, entry actions, state observable → progress UI, persist-on-change, cancel paths, Mermaid/D2 diagram export (see §15.2) |
-| UC-2 | **Payment & refund processing** | Payments / fintech | Async entry actions (gateway call), guarded transitions, timeout → auto-cancel, parameterized payload (receipt), error stream |
-| UC-3 | **Approval / document workflow** | Content / HR | Guard "N approvals collected", escalation via timer trigger, `IsInState` for draft-of-published, history |
-| UC-4 | **Device lifecycle & provisioning** | IoT | Connection states, heartbeat timeouts (observable triggers), reconnection with backoff (timer), telemetry throttling via Rx |
-| UC-5 | **Socket / session connection FSM** | Networking | Reentrant transitions (reconnect), `InternalTransition` (heartbeat ping), queued firing under load, thread-safety |
-| UC-6 | **Background job / pipeline processing** | DevOps / data | Retry-with-backoff (timer triggers), max-retry guard, async actions (worker calls), permitted-triggers UI |
-| UC-7 | **UI wizard / multi-step form** | Web/desktop | State observable drives step rendering; guard enables "Next"; `OnEntryFrom` runs per-step logic; parameterized payload |
-| UC-8 | **Saga orchestration** | Distributed systems | External state storage + snapshot persistence, async actions, error policies, timeouts; survives restarts |
-| UC-9 | **Game / player state machine** | Games | High-frequency observable input, debounce/throttle, immediate firing, testable with virtual time |
-| UC-10 | **Media player / playback control** | Media | Parameterized transitions (seek position), internal transitions (volume), guarded transitions (buffered?) |
+| #     | Use case                                 | Domain              | Key framework features exercised                                                                                                             |
+| ----- | ---------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| UC-1  | **Order / checkout lifecycle**           | E‑commerce          | Basic permits, guards, entry actions, state observable → progress UI, persist-on-change, cancel paths, Mermaid/D2 diagram export (see §15.2) |
+| UC-2  | **Payment & refund processing**          | Payments / fintech  | Async entry actions (gateway call), guarded transitions, timeout → auto-cancel, parameterized payload (receipt), error stream                |
+| UC-3  | **Approval / document workflow**         | Content / HR        | Guard "N approvals collected", escalation via timer trigger, `IsInState` for draft-of-published, history                                     |
+| UC-4  | **Device lifecycle & provisioning**      | IoT                 | Connection states, heartbeat timeouts (observable triggers), reconnection with backoff (timer), telemetry throttling via Rx                  |
+| UC-5  | **Socket / session connection FSM**      | Networking          | Reentrant transitions (reconnect), `InternalTransition` (heartbeat ping), queued firing under load, thread-safety                            |
+| UC-6  | **Background job / pipeline processing** | DevOps / data       | Retry-with-backoff (timer triggers), max-retry guard, async actions (worker calls), permitted-triggers UI                                    |
+| UC-7  | **UI wizard / multi-step form**          | Web/desktop         | State observable drives step rendering; guard enables "Next"; `OnEntryFrom` runs per-step logic; parameterized payload                       |
+| UC-8  | **Saga orchestration**                   | Distributed systems | External state storage + snapshot persistence, async actions, error policies, timeouts; survives restarts                                    |
+| UC-9  | **Game / player state machine**          | Games               | High-frequency observable input, debounce/throttle, immediate firing, testable with virtual time                                             |
+| UC-10 | **Media player / playback control**      | Media               | Parameterized transitions (seek position), internal transitions (volume), guarded transitions (buffered?)                                    |
 
 ### 8.1 Two detailed examples (how a product owner reads confidence)
 
@@ -522,13 +549,13 @@ High-level guidance on where complexity lives, so the work is phased sensibly:
 
 ### 9.1 Milestones
 
-| Milestone | Theme | Delivered (FRs) | Complexity | Target |
-|---|---|---|---|---|
-| **M0** | Foundations | Project scaffolding, package skeleton, CI, docs site, benchmarks harness | Low | Sprint 1 |
-| **M1 — Core** | The "widely used majority" | FR-1..8, FR-10..14 (sync), FR-16..17, FR-19 (throw policy), samples UC-1/5/7/9 | Low–Med | Sprint 2–3 |
-| **M2 — Async & power** | Async, payloads, policies, scheduling, timers, storage | FR-9, FR-15, FR-18, FR-19 (all policies), FR-20, FR-21, FR-24, FR-14 (observer input fully), queued firing | Medium | Sprint 4–6 |
-| **M3 — Hierarchy & persistence** | Hierarchical states + snapshot persistence | FR-22, FR-23, FR-25, FR-26, FR-28, Mermaid/D2 export | Med–High | Sprint 7–9 |
-| **M4 — Hardening** | Thread-safe active mode, perf, stress tests, docs, final samples | NFR-3, NFR-5, NFR-6, remaining | High | Sprint 10–12 |
+| Milestone                        | Theme                                                            | Delivered (FRs)                                                                                            | Complexity | Target       |
+| -------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------- | ------------ |
+| **M0**                           | Foundations                                                      | Project scaffolding, package skeleton, CI, docs site, benchmarks harness                                   | Low        | Sprint 1     |
+| **M1 — Core**                    | The "widely used majority"                                       | FR-1..8, FR-10..14 (sync), FR-16..17, FR-19 (throw policy), samples UC-1/5/7/9                             | Low–Med    | Sprint 2–3   |
+| **M2 — Async & power**           | Async, payloads, policies, scheduling, timers, storage           | FR-9, FR-15, FR-18, FR-19 (all policies), FR-20, FR-21, FR-24, FR-14 (observer input fully), queued firing | Medium     | Sprint 4–6   |
+| **M3 — Hierarchy & persistence** | Hierarchical states + snapshot persistence                       | FR-22, FR-23, FR-25, FR-26, FR-28, Mermaid/D2 export                                                       | Med–High   | Sprint 7–9   |
+| **M4 — Hardening**               | Thread-safe active mode, perf, stress tests, docs, final samples | NFR-3, NFR-5, NFR-6, remaining                                                                             | High       | Sprint 10–12 |
 
 ### 9.2 Why this order
 
@@ -647,14 +674,14 @@ machine.Configure(OrderState.Submitted)
 
 ## 12. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Observable API is over-engineered / confusing | Adoption friction | Hybrid keeps `Fire()` simple; streams are additive. Docs + samples first. |
-| Hierarchy/history bugs are subtle and easy to get wrong | Correctness | Defer to M3; model on proven, well-documented hierarchy semantics; heavy test coverage. |
-| netstandard2.0 costs time (shims, `#if`) | Schedule | Addressed in §14.2 / NFR-8: `netstandard2.0` is targeted; only modern niceties are gated behind `#if`. |
-| Thread-safety surprises in queued mode | Production incidents | Ship passive/immediate first (single-threaded, documented); active mode behind a clear opt-in. |
-| Scope creep (full workflow engine) | Schedule | Non-goals (§4.3) kept visible; long-running workflow orchestration explicitly out. |
-| Rx dependency perceived as heavy | Adoption | System.Reactive is already ubiquitous; we depend on it directly, no wrapper bloat. |
+| Risk                                                    | Impact               | Mitigation                                                                                             |
+| ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
+| Observable API is over-engineered / confusing           | Adoption friction    | Hybrid keeps `Fire()` simple; streams are additive. Docs + samples first.                              |
+| Hierarchy/history bugs are subtle and easy to get wrong | Correctness          | Defer to M3; model on proven, well-documented hierarchy semantics; heavy test coverage.                |
+| netstandard2.0 costs time (shims, `#if`)                | Schedule             | Addressed in §14.2 / NFR-8: `netstandard2.0` is targeted; only modern niceties are gated behind `#if`. |
+| Thread-safety surprises in queued mode                  | Production incidents | Ship passive/immediate first (single-threaded, documented); active mode behind a clear opt-in.         |
+| Scope creep (full workflow engine)                      | Schedule             | Non-goals (§4.3) kept visible; long-running workflow orchestration explicitly out.                     |
+| Rx dependency perceived as heavy                        | Adoption             | System.Reactive is already ubiquitous; we depend on it directly, no wrapper bloat.                     |
 
 ---
 
@@ -716,9 +743,10 @@ may still be revised while the PRD is in draft.
 ## 15. Appendix
 
 ### 15.1 Glossary
+
 - **State machine (FSM):** a model with a finite set of states, one current state, and guarded
   transitions between them triggered by triggers.
-- **Trigger:** the input that may cause a transition (sometimes called an *event* in other state
+- **Trigger:** the input that may cause a transition (sometimes called an _event_ in other state
   machine libraries).
 - **Guard:** a predicate that must return true for a transition to be permitted.
 - **Observable (`IObservable<T>`):** a push-based, lazily-composed stream of values.
@@ -732,9 +760,9 @@ may still be revised while the PRD is in draft.
 
 ### 15.2 Example exports (Mermaid & D2)
 
-*Informational only — illustrative output that the M3 formatters (`MermaidFormatter`,
+_Informational only — illustrative output that the M3 formatters (`MermaidFormatter`,
 `D2Formatter`) will produce from a machine's configuration graph. Exact syntax and annotation
-detail are subject to implementation.*
+detail are subject to implementation._
 
 Using the order lifecycle from UC-1:
 
@@ -787,6 +815,7 @@ Delivered -> end
 ```
 
 Notes:
+
 - Guards, entry/exit actions, and parameterized payloads can be annotated as edge labels/details
   (Mermaid `:label` and D2 edge labels) — the detail level is a formatter decision.
 
