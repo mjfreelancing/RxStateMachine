@@ -1,7 +1,7 @@
 # RxStateMachine — Product Requirements Document
 
 > **Status:** Draft </br>
-> **Last Updated:** 2026-08-14 </br>
+> **Last Updated:** 2026-08-24 </br>
 > **Target frameworks:** `netstandard2.0` + `net10.0` </br>
 > **Core dependency:** System.Reactive (Rx.NET)
 
@@ -19,16 +19,15 @@ System.Reactive). The state machine is:
 - a **consumer** — triggers can be pushed imperatively (`Fire(...)`) **and/or** wired directly from
   other observable streams (message buses, UI events, timers, webhooks).
 
-This "hybrid" design (see §5) gives us the best of both worlds: the **readability, async support, and
+This "hybrid" design gives us the best of both worlds: the **readability, async support, and
 debuggability** of a classic state machine core, plus the **composition power** of Rx for consumers
 (`DistinctUntilChanged`, `Throttle`, `Buffer`, `CombineLatest`, scheduler control, hot/cold semantics,
-and painless UI/telemetry/persistence binding).
+and painless UI/telemetry/persistence binding). The hybrid architecture is the product baseline; §5
+describes it in full.
 
-The library will be informed by the most popular existing C# state machines on NuGet —
-[Stateless](https://www.nuget.org/packages/Stateless), [Appccelerate.StateMachine](https://www.nuget.org/packages/Appccelerate.StateMachine),
-[Automatonymous/MassTransit](https://www.nuget.org/packages/Automatonymous), and
-[WorkflowCore](https://www.nuget.org/packages/WorkflowCore) — adopting their most-used features and
-filling the observable gap (see §6).
+The library is informed by the most popular existing C# state machine libraries on NuGet (see §15.3),
+adopting many of their most-used features. It takes a different approach: the machine is natively
+observable, which simplifies reactive usage and supports complex async scenarios (see §6).
 
 ---
 
@@ -53,39 +52,78 @@ approval workflows, device connection lifecycles, job processing, UI wizards, sa
 Teams typically hand-roll ad-hoc enums + `switch` statements, which quickly become unmaintainable and
 un-testable as guards, side effects, and async steps accumulate.
 
-### 3.2 Why not just use an existing library?
+### 3.2 A different approach
 
-The popular existing libraries are excellent but are built on an **event/subscription** model:
+The popular existing libraries are typically built on an **event/subscription** or **callback** model, or are tied to an external messaging stack.
 
-- **Stateless** exposes `OnTransitioned(...)`, `OnTransitionCompleted(...)` and requires manual
-  bookkeeping to observe state.
-- **Appccelerate** uses an `IExtension` interface with many lifecycle callbacks.
-- **Automatonymous** is tied to the MassTransit messaging stack.
+Modern .NET applications already use **System.Reactive** (Rx.NET) for UI binding, telemetry,
+message-bus plumbing, and stream processing. RxStateMachine takes a **different approach**: the state
+machine is *natively* observable, so it composes directly with that ecosystem — no adapters, no
+manual `Subject` wiring, no missed updates — while keeping the familiar fluent configuration style
+that state machine users expect. The aim is to simplify reactive usage and support complex async
+scenarios.
 
-All of them treat *observing* the machine as a secondary concern bolted on after the fact. Modern .NET
-applications already use **System.Reactive** (Rx.NET) for UI binding, telemetry, message-bus plumbing,
-and stream processing. A state machine that is *natively* observable composes directly with that
-ecosystem: no adapters, no manual `Subject` wiring, no missed updates.
+### 3.3 Why the hybrid architecture
 
-### 3.3 Why observables (and why hybrid)?
+The transition engine is a **classic imperative FSM core** (guards, entry/exit/transition actions,
+async support, validation, introspection), and **everything observable flows through native
+`IObservable<T>` streams**. The engine is deliberately not a pure-Rx reduction of an input stream.
+This is the most reusable structure: it does not force consumers into pure-Rx patterns they may not
+want, while fully enabling them when they do.
 
-There are two extreme designs:
+**What this gives us (benefits):**
 
-| | **Purely Reactive** (state derived via `Scan`) | **Hybrid** (classic FSM core + observable API) |
-|---|---|---|
-| State storage | Derived from the event stream history | Explicit, owned by the machine |
-| Complex async side effects (I/O, retries, DB) | Hard — `SelectMany` spaghetti, race-prone | Natural `async`/`await` in entry/exit/transition actions |
-| Time-based operators (debounce, throttle, timer) | Exceptional, built-in | Available to *consumers* of the streams; helpers for timers |
-| Debugging | Deep Rx pipelines, scheduler issues | Standard C# stack traces in the core |
-| Guard logic & error handling | Awkward inside stream operators | First-class, with clear policies |
-| UI / telemetry / persistence binding | Seamless | Seamless (that's the point of the observable API) |
-| Ideal for | High-frequency input streams, games, IoT telemetry | Domain services, workflows, payments, most line-of-business |
+| Benefit | What it means |
+|---|---|
+| Natural async side effects | Complex async work (I/O, retries, database calls) is written with plain `async`/`await` in entry/exit/transition actions — not `SelectMany` spaghetti or race-prone pipelines. |
+| Readable debugging | Standard C# stack traces in the core, not deep Rx pipelines and scheduler forensics. |
+| First-class guards & errors | Guard logic and error handling are explicit, with clear policies and rich error objects. |
+| Explicit state ownership | The current state is owned by the machine in one place, not derived from event-stream history; no parallel copies to drift. |
+| Seamless reactive consumption | UI / telemetry / persistence binding is plain LINQ over the exposed streams. |
+| Consumer-side time operators | Debounce, throttle, and timer operators compose on the consumer side of the streams, with helper APIs for timers. |
 
-**Decision (recommended):** a **hybrid** architecture. The transition engine is a proper state machine
-(guards, entry/exit/transition actions, async support, validation, introspection), and **everything
-observable flows through native `IObservable<T>` streams**. This is the most *reusable* choice because
-it doesn't force consumers into pure-Rx patterns they may not want, while fully enabling them when
-they do. §5.2 shows the three options and the recommendation.
+**Caveats to be aware of:**
+
+- The machine is not a pure function of an input stream; consumers who want a fully derived model
+  must build it themselves from the exposed streams.
+- The sweet spot is domain services, workflows, payments, and most line-of-business applications.
+  High-frequency input streams (games, IoT telemetry) are fully supported through immediate firing and
+  observable inputs, but the library is not built as a pure stream-reduction engine.
+
+> ---
+>
+> **What "stream-reduction" means here.** In functional programming, *reduce* / *fold* collapses a
+> sequence into a single accumulated value by repeatedly applying a combining function — Rx's `Scan`
+> is the incremental version, emitting the running accumulator after each input:
+>
+> ```
+> seed = Draft
+> step 1: fold(Draft,     Submit)  → Submitted
+> step 2: fold(Submitted, Pay)     → Paid
+> step 3: fold(Paid,      Ship)    → Shipped
+> ```
+>
+> A "stream-reduction engine" is therefore a state machine whose state is **never stored** — it is
+> derived on the fly as a pure fold of the incoming trigger stream:
+>
+> ```csharp
+> // A "stream-reduction" state machine — state is a running fold of the trigger stream:
+> currentState = triggers.Scan(OrderState.Draft,
+>     (state, trigger) => (state, trigger) switch
+>     {
+>         (OrderState.Draft, OrderTrigger.Submit) => OrderState.Submitted,
+>         (OrderState.Submitted, OrderTrigger.Pay) => OrderState.Paid,
+>         (OrderState.Paid, OrderTrigger.Ship) => OrderState.Shipped,
+>         _ => state
+>     });
+> ```
+>
+> RxStateMachine is not built this way (see the §5.4 design note). The current state is **owned
+> explicitly** by the transition engine, which runs guards, entry/exit actions, async work, and
+> validation; the observable streams are *outputs* of that engine — not a fold recomputed from
+> trigger history on every emission.
+>
+> ---
 
 ---
 
@@ -100,7 +138,7 @@ they do. §5.2 shows the three options and the recommendation.
 - **G3 — Type-safe.** `TState`/`TTrigger` generics, typed transition payloads, nullable annotations,
   and fail-fast configuration validation catch mistakes at compile time or at startup — not in
   production.
-- **G4 — Feature parity with the "80% most-used" constructs** from Stateless/Appccelerate
+- **G4 — Feature parity with the majority of most-used constructs** of the .NET state machine ecosystem
   (entry/exit/transition actions, guards, internal/reentrant transitions, parameterized triggers,
   async, introspection, hierarchical states, persistence hooks).
 - **G5 — Low-friction adoption.** Familiar fluent API, minimal ceremony, excellent XML docs, and
@@ -111,9 +149,9 @@ they do. §5.2 shows the three options and the recommendation.
 ### 4.2 Objectives (measurable)
 
 - **O1.** Ship v1 with the "Core" milestone features (§9) and the hybrid observable API.
-- **O2.** Achieve feature coverage of Stateless' most-used surface (Permit / PermitIf /
-  InternalTransition / PermitReentry / parameterized triggers / OnEntry / OnExit / OnTransitioned /
-  GetPermittedTriggers / external state storage / async variants) — v1.
+- **O2.** Achieve feature coverage of the most-used surface of the .NET state machine ecosystem
+  (Permit / PermitIf / InternalTransition / PermitReentry / parameterized triggers / OnEntry / OnExit
+  / OnTransitioned / GetPermittedTriggers / external state storage / async variants) — v1.
 - **O3.** 100% of public API covered by XML docs; ≥ 80% unit-test line coverage on the core engine.
 - **O4.** Transitions are allocation-conscious: a simple synchronous transition with no actions should
   complete in microseconds and not allocate on the hot path (benchmarked with BenchmarkDotNet).
@@ -126,18 +164,17 @@ they do. §5.2 shows the three options and the recommendation.
 
 - Not a visual designer / diagramming tool (visualization *export* is in scope later; a visual editor
   is not).
-- Not a long-running workflow engine with built-in scheduling/compensation like WorkflowCore
-  (though saga-style usage with persistence is supported).
+- Not a long-running workflow engine with built-in scheduling/compensation (though saga-style usage
+  with persistence is supported).
 - Not tied to any DI container, ORM, or messaging framework (integration examples only).
-- Not a code generator (no source-generated state machines — not currently required; see §14.4).
+- Not a code generator (no source-generated state machines; see §14.4).
 - Not a replacement for Rx itself; we build *on* System.Reactive, not re-implement it.
 
 ---
 
 ## 5. The Observable Model (Producer / Consumer)
 
-This is the heart of the design and the decision that needed the most thought. Here is how we reason
-about it.
+This is the heart of the design.
 
 ### 5.1 Core mental model
 
@@ -181,25 +218,26 @@ flowchart LR
 - **Consumer side (inputs):** triggers arrive either imperatively (`Fire(...)`) or by piping an
   upstream observable into the machine (e.g., `messageBus.Observe<OrderEvent>().Subscribe(machine)`).
 
-### 5.2 The three candidate designs
+### 5.2 Architecture baseline
 
-| | **A. Outputs only** | **B. Fully reactive** | **C. Hybrid (recommended)** |
-|---|---|---|---|
-| State/transition outputs | `IObservable<T>` | `IObservable<T>` | `IObservable<T>` |
-| Trigger input | `Fire(...)` only | Machine implements `IObserver<TTrigger>`; state via `Scan` | Both `Fire(...)`/`FireAsync(...)` **and** `IObserver` input |
-| Async side effects | Natural | Awkward (`SelectMany` nesting) | Natural (`async`/`await`) |
-| Time-based composition for consumers | Via streams | Exceptional | Via streams |
-| Learning curve | Low | High | Low–Medium |
-| Reusability / flexibility | High | Medium (opinionated) | **Highest** |
-| Risk | Observers miss updates if wired by hand | Debugging & error-handling complexity | Low (classic core + observable API) |
+The machine is **both** a producer and a consumer:
 
-**Recommendation: Option C — Hybrid.** The transition engine is a conventional, well-tested state
-machine (like Stateless) so business logic stays readable and async-friendly; the machine *natively*
-implements `IObservable<TState>` (producer) and also accepts observable trigger streams (consumer).
-Nothing forces users into pure-Rx — but everything is available if they want it.
+- **Producer.** The machine implements `IObservable<TState>` and exposes the streams in §5.3. State
+  and transitions are **hot** and **replay the latest value** (`BehaviorSubject`-backed), so late
+  subscribers receive the current state immediately. All streams are disposable and compose with
+  standard Rx operators.
+- **Consumer.** Triggers are accepted two ways, driving the same transition engine so there is exactly
+  one behavior regardless of how a trigger arrives:
+  1. **Imperative** — `Fire(...)` / `FireAsync(...)`.
+  2. **Reactive** — the machine implements `IObserver<TriggerWithParameters<TState, TTrigger>>`, so
+     any observable can be piped directly in: `messageBus.Observe<OrderEvent>().Subscribe(machine)`.
 
-> ⚠️ **Open decision (see §14):** confirm Option C after reviewing the worked examples in §5.4.
-> This is the one architectural choice we'd like explicit sign-off on before Milestone 1.
+**Benefits of this structure:**
+
+- Business logic stays readable and async-friendly (a classic FSM core) while everything is available
+  to reactive consumers.
+- No adapters or manual `Subject` wiring: observable streams compose directly with the Rx ecosystem.
+- Consumers that prefer imperative `Fire()` get full functionality without needing to learn Rx.
 
 ### 5.3 Streams the machine exposes (v1)
 
@@ -208,12 +246,12 @@ Nothing forces users into pure-Rx — but everything is available if they want i
 | Current state | `IObservable<TState>` (machine itself) | Hot, replays last (`BehaviorSubject`-backed) so late subscribers get the current state |
 | State changed | `IObservable<StateChange<TState>>` | `Previous`, `Current`, `Timestamp`, `IsReentry`, `IsInternal` |
 | Transition | `IObservable<Transition<TState,TTrigger>>` | `Source`, `Destination`, `Trigger`, payload, kind, duration |
-| Transition completed | `IObservable<Transition<TState,TTrigger>>` | Fired after last entry action completes (Stateless parity) |
+| Transition completed | `IObservable<Transition<TState,TTrigger>>` | Fired after the last entry action completes |
 | Guard result | `IObservable<GuardResult<TState,TTrigger>>` | Every guard evaluation (for logging, tests, and "why blocked?" UI) |
 | Permitted triggers | `IObservable<PermittedTriggers<TState,TTrigger>>` | Re-emitted when the state changes; also queryable via `GetPermittedTriggers()` |
 | Errors | `IObservable<StateMachineError>` | Unhandled triggers, guard/action exceptions, configuration errors (depending on policy) |
 
-### 5.4 Worked examples (to aid the product decision)
+### 5.4 Worked examples
 
 **Example 1 — Producer only (most common):** a checkout UI wants to drive a progress bar and disable
 buttons. The consumer needs **no** trigger wiring.
@@ -252,8 +290,8 @@ Observable.Timer(TimeSpan.FromMinutes(10))
     .Subscribe(machine);
 ```
 
-**Example 3 — The "pure Rx Scan" alternative** (what we are *not* building as the core, for
-comparison):
+**Design note — why the core is not a pure `Scan`:** a fully reactive engine could derive state with
+`Scan`:
 
 ```csharp
 _state = _events
@@ -267,52 +305,32 @@ _state = _events
 
 This is elegant but breaks down when transitions must run **async I/O, retries, or database calls**
 inside guards/actions, and it has no place for entry/exit side effects, guard descriptions, or
-"why is this blocked?" introspection. Our hybrid keeps all of that while still exposing the same
+"why is this blocked?" introspection. The hybrid keeps all of that while still exposing the same
 `IObservable<TState>` to consumers.
 
 ---
 
-## 6. Reference Landscape (Existing NuGet State Machines)
+## 6. Design Influences
 
-Used as **guidelines** for feature completeness, not as dependencies.
+The design draws on the familiar vocabulary and feature set of the .NET state machine ecosystem
+(see §15.3), so that users of the established libraries feel at home, while taking a different
+approach with an observable-first API that simplifies reactive usage and supports complex async
+scenarios.
 
-| Feature | Stateless | Appccelerate | Automatonymous (MassTransit) | WorkflowCore | **This framework (target)** |
-|---|---|---|---|---|---|
-| Downloads (approx.) | ~33.6M | ~2.2M | ~52M | ~4.8M | — |
-| Generic states/triggers (any type) | ✅ | ✅ | enum-based | string/JSON | ✅ (any type) |
-| Fluent config (`Permit`, `PermitIf`) | ✅ | ✅ (`.If().Goto()`) | ✅ | ✅ | ✅ |
-| Entry/exit actions (sync + async) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Transition actions | ✅ (internal) | ✅ | ✅ | ✅ | ✅ |
-| Guards / guard descriptions | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Parameterized triggers (typed payloads) | ✅ | ✅ (parametrized actions) | ✅ | ✅ | ✅ |
-| Internal transitions (no exit/entry) | ✅ | ✅ | ~ | ✅ | ✅ |
-| Reentrant transitions | ✅ | ~ | ~ | ~ | ✅ |
-| Dynamic destination (`destinationStateSelector`) | ✅ | ✅ | ~ | ✅ | ✅ |
-| Hierarchical (super/sub) states | ✅ | ✅ | ✅ | ✅ | ✅ (M2) |
-| History (shallow/deep) | ~ | ✅ | ~ | ~ | ✅ (M2) |
-| Async (`FireAsync`, async guards/actions) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Introspection / permitted triggers | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Machine info / report (text, DOT, Mermaid, D2, CSV, yEd) | DOT + Mermaid | text/CSV/yEd + custom | — | — | ✅ (Mermaid + D2, M3) |
-| External state storage (accessor/mutator) | ✅ | ✅ (persist whole machine) | ✅ (saga DB) | ✅ | ✅ (M2) |
-| Threading model | Immediate / Queued | Passive / Active (thread-safe) | queue-based | queue-based | Immediate / Queued (M2) |
-| Timer / timeout driven transitions | ❌ (manual) | ❌ (manual) | ✅ (saga schedules) | ✅ | ✅ via Rx (M2) |
-| Extension points / lifecycle hooks | events | `IExtension` | message handlers | events | observable streams + optional observer base |
-| **Observable-first API** | ❌ | ❌ | ❌ | ❌ | ✅ (our differentiator) |
+### 6.1 Feature ideas adopted from the ecosystem
 
-### 6.1 Feature ideas we borrow from these libraries
-
-1. **Stateless** → `FiringMode.Immediate` vs `.Queued`; `OnTransitioned` / `OnTransitionCompleted`;
+1. Firing modes (`FiringMode.Immediate` vs `.Queued`); `OnTransitioned` / `OnTransitionCompleted`;
    external state storage via `Func<TState>`/`Action<TState>`; `StateMachineInfo` introspection;
-   graph export (Stateless pioneered DOT/Mermaid; **we scope to Mermaid + D2** — product decision);
-   guard descriptions for rich error messages; `TriggerWithParameters<TArg>`.
-2. **Appccelerate** → hierarchical states with `HistoryType.None / Shallow / Deep`; **active**
-   (thread-safe, worker-thread) vs **passive** machines; extension callbacks around the full lifecycle
-   (entering/entered state, firing/fired event, guard/action exceptions); persistence of current state
-   + queued events + history; reporting.
-3. **Automatonymous/MassTransit** → saga-style usage; scheduling/timeouts (`Schedule`/`Publish`);
-   state-machine-as-persistence-subject; correlation.
-4. **WorkflowCore** → persistence-first design, long-running workflows; we deliberately keep this
-   lighter, but support snapshot persistence.
+   graph export in **Mermaid + D2**; guard descriptions for rich error messages;
+   `TriggerWithParameters<TArg>`.
+2. Hierarchical states with history types (`None` / `Shallow` / `Deep`); **active** (thread-safe,
+   worker-thread) vs **passive** machines; extension callbacks around the full lifecycle (entering /
+   entered state, firing / fired event, guard/action exceptions); persistence of current state +
+   queued events + history; reporting.
+3. Saga-style usage; scheduling / timeouts (`Schedule` / `Publish`); state-machine-as-persistence-
+   subject; correlation.
+4. Persistence-first design for long-running workflows; we support snapshot persistence without full
+   long-running workflow orchestration.
 
 ---
 
@@ -326,14 +344,14 @@ Used as **guidelines** for feature completeness, not as dependencies.
 - **FR-2** Fluent builder: `Configure(TState)` returning a configuration object with
   `Permit`, `PermitIf`, `PermitReentry`, `InternalTransition`, and dynamic destination selectors.
 - **FR-3** Entry actions (`OnEntry`), exit actions (`OnExit`), trigger-specific entry actions
-  (`OnEntryFrom(trigger, ...)`), activation/deactivation actions (Stateless parity).
+  (`OnEntryFrom(trigger, ...)`), activation/deactivation actions.
 - **FR-4** Transition actions (`OnTransitioned`, `OnTransitionCompleted`).
 - **FR-5** Guards with optional human-readable descriptions; multiple guards evaluated in
   registration order; an `otherwise`/default transition concept.
 - **FR-6** Parameterized transitions: `TriggerWithParameters<TTrigger, TPayload>` carrying a typed
   payload through the transition (available to actions/guards and the transition stream).
 - **FR-7** Internal transitions (side effect, no exit/entry, no state change).
-- **FR-8** Reentrant transitions (re-run exit+entry without leaving, Stateless `PermitReentry`).
+- **FR-8** Reentrant transitions (re-run exit+entry without leaving).
 - **FR-9** Async variants of all of the above (`OnEntryAsync`, `PermitIfAsync`, `FireAsync`).
 - **FR-10** Configuration-time validation: unknown destination, duplicate transition registration,
   guard without a destination, missing initial state, invalid hierarchy — fail fast with actionable
@@ -355,7 +373,7 @@ Used as **guidelines** for feature completeness, not as dependencies.
 #### Introspection & diagnostics
 - **FR-16** `GetPermittedTriggers()` / async variant, honoring guards.
 - **FR-17** `GetInfo()` / `StateMachineInfo` describing states, transitions, guards, and action
-  metadata (Stateless parity) — the basis for diagnostics and graph export.
+  metadata — the basis for diagnostics and graph export.
 - **FR-18** Guard descriptions surfaced in exceptions and in a `GuardResult` stream (answers "why is
   this transition blocked?").
 
@@ -366,9 +384,9 @@ Used as **guidelines** for feature completeness, not as dependencies.
 
 #### External state / persistence (M2)
 - **FR-21** External state storage via `Func<TState> stateAccessor` / `Action<TState> stateMutator`
-  (Stateless parity) so state can live in an ORM entity.
+  so state can live in an ORM entity.
 - **FR-22** Snapshot persistence: serialize current state, active substate history, and (in queued
-  mode) pending triggers (Appccelerate parity) via a small `IStateMachinePersistence` interface.
+  mode) pending triggers via a small `IStateMachinePersistence` interface.
 - **FR-23** "Persistence as an observer": because state changes are observable, persisting is simply
   `machine.Subscribe(state => repository.Save(instanceId, state))` — no special API required.
 
@@ -378,38 +396,57 @@ Used as **guidelines** for feature completeness, not as dependencies.
   subscription cancellation when the state is left.
 
 #### Hierarchical states (M2)
-- **FR-25** `SubstateOf(superstate)`, `InitialTransitionTarget`, history types `None/Shallow/Deep`
-  (Appccelerate parity).
+- **FR-25** `SubstateOf(superstate)`, `InitialTransitionTarget`, history types `None/Shallow/Deep`.
 - **FR-26** `IsInState(superstate)` returns true when in any substate; superstate exit/entry actions
   run at the correct points in the nesting.
 
 #### Visualization & reporting (M3)
-- **FR-27** Export configuration to **Mermaid** and **D2** for docs/PRs (product decision: no DOT).
-- **FR-28** Optional textual report of states/transitions/actions (Appccelerate-style).
+- **FR-27** Export configuration to **Mermaid** and **D2** for docs/PRs.
+- **FR-28** Optional textual report of states/transitions/actions.
+
+#### API identity & baseline surface
+- **FR-29** Package / product name: **`RxStateMachine`**.
+- **FR-30** `Fire`/`FireAsync` **return the resulting `Transition`** — sync
+  `Transition<TState,TTrigger>`, async `Task<Transition<TState,TTrigger>>` — for fluent/assertive
+  tests and callers that need the transition result (see §10.2).
+- **FR-31** The `Errors` stream emits rich **`StateMachineError`** values carrying the trigger, state,
+  exception, and policy.
 
 ### 7.2 Non-functional requirements
 
 - **NFR-1** No dependencies beyond `System.Reactive` (and standard BCL). No app-framework, DI, or
   messaging dependencies.
-- **NFR-2** Nullable reference types enabled; `notnull` constraints where appropriate; `[Obsolete]`
-  policy for API evolution.
+- **NFR-2** Nullable reference types enabled; `notnull` constraints where appropriate. **No `[Obsolete]`
+  on v1** — the API is expected to evolve as we build, so there is no need for `[Obsolete]` on the
+  first version; members may change or be removed before the first stable release (versioning boundary
+  is NFR-9).
 - **NFR-3** Thread-safety: immediate mode is single-threaded and reentrancy-protected; queued/active
   mode is safe for concurrent `Fire` from multiple threads (M2).
 - **NFR-4** Async-first: never block on async work (no `.Result`/`.Wait()` in library code).
 - **NFR-5** Performance: zero or minimal allocation on the simple-transition hot path; configuration
   is one-time; streams should not allocate per-subscription unnecessarily.
 - **NFR-6** Determinism & testability: injectable scheduler, no ambient time dependence, helpers for
-  virtual time (Rx `TestScheduler`).
+  virtual time (Rx `TestScheduler`). Time-based behavior is implemented on Rx `IScheduler`;
+  `TestScheduler` provides virtual time for tests. `TimeProvider` is **not** part of the public API;
+  it is used only for cosmetic timestamps, gated behind `#if NET8_0_OR_GREATER` — an SDK symbol
+  defined automatically for net8.0 **and later**, including net10.0 (netstandard2.0 falls back to
+  `DateTimeOffset.UtcNow`) — or the `Microsoft.Bcl.TimeProvider` backport.
 - **NFR-7** Documentation: XML docs on all public members; API docs site (DocFX or similar); ≥ 8
   runnable samples.
-- **NFR-8** Compatibility targets: **netstandard2.0** + **net10.0** (decided; net8.0 omitted — nearing end-of-life).
-  (§14.2) for maximum reuse across older projects.
+- **NFR-8** Compatibility targets: **netstandard2.0** + **net10.0**. **`net8.0` is not targeted** — it
+  is nearing end-of-life, and `net10.0` covers modern consumers. Multi-targeting costs are limited to
+  C# feature shims (`IsExternalInit` for `init`/records, `RequiredMemberAttribute` for `required`) and
+  a few `#if` gates — with no sacrifice to functionality, testability, or API quality.
 - **NFR-9** Semantic versioning; clean public API surface with an explicit public/`internal` boundary.
 - **NFR-10** Cancellation: `CancellationToken` support on long-running/async transition operations.
+- **NFR-11** Async API shape: all async APIs are `Task`-based and the reactive surface is
+  `IObservable<T>`; `IAsyncEnumerable` is not required. (System.Reactive 6.x ships
+  `ToObservable`/`ToAsyncEnumerable`, and `Microsoft.Bcl.AsyncInterfaces` backports it to
+  netstandard2.0, for interop if ever wanted.)
 
 ---
 
-## 8. Example Use Cases (Product-Owner Confidence)
+## 8. Example Use Cases
 
 These scenarios span the domains our consumers actually build. Each maps to concrete FRs. The PRD
 treats these as the **definition of "most, if not all, business requirements"** — if a new requirement
@@ -424,7 +461,7 @@ looks like one of these, the framework covers it.
 | UC-5 | **Socket / session connection FSM** | Networking | Reentrant transitions (reconnect), `InternalTransition` (heartbeat ping), queued firing under load, thread-safety |
 | UC-6 | **Background job / pipeline processing** | DevOps / data | Retry-with-backoff (timer triggers), max-retry guard, async actions (worker calls), permitted-triggers UI |
 | UC-7 | **UI wizard / multi-step form** | Web/desktop | State observable drives step rendering; guard enables "Next"; `OnEntryFrom` runs per-step logic; parameterized payload |
-| UC-8 | **Saga orchestration (MassTransit-style)** | Distributed systems | External state storage + snapshot persistence, async actions, error policies, timeouts; survives restarts |
+| UC-8 | **Saga orchestration** | Distributed systems | External state storage + snapshot persistence, async actions, error policies, timeouts; survives restarts |
 | UC-9 | **Game / player state machine** | Games | High-frequency observable input, debounce/throttle, immediate firing, testable with virtual time |
 | UC-10 | **Media player / playback control** | Media | Parameterized transitions (seek position), internal transitions (volume), guarded transitions (buffered?) |
 
@@ -474,8 +511,7 @@ machine.Configure(ConnectionState.Retrying)
 
 ## 9. Feature Complexity Analysis & Delivery Plan
 
-The product owner asked which features carry the most complexity so we can phase sensibly. High-level
-guidance:
+High-level guidance on where complexity lives, so the work is phased sensibly:
 
 - **Low complexity (core, ship first):** basic permits, entry/exit/transition actions, internal &
   reentrant transitions, parameterized payloads, observable outputs, `Fire`, config validation.
@@ -489,7 +525,7 @@ guidance:
 | Milestone | Theme | Delivered (FRs) | Complexity | Target |
 |---|---|---|---|---|
 | **M0** | Foundations | Project scaffolding, package skeleton, CI, docs site, benchmarks harness | Low | Sprint 1 |
-| **M1 — Core** | The "widely used 80%" | FR-1..8, FR-10..14 (sync), FR-16..17, FR-19 (throw policy), samples UC-1/5/7/9 | Low–Med | Sprint 2–3 |
+| **M1 — Core** | The "widely used majority" | FR-1..8, FR-10..14 (sync), FR-16..17, FR-19 (throw policy), samples UC-1/5/7/9 | Low–Med | Sprint 2–3 |
 | **M2 — Async & power** | Async, payloads, policies, scheduling, timers, storage | FR-9, FR-15, FR-18, FR-19 (all policies), FR-20, FR-21, FR-24, FR-14 (observer input fully), queued firing | Medium | Sprint 4–6 |
 | **M3 — Hierarchy & persistence** | Hierarchical states + snapshot persistence | FR-22, FR-23, FR-25, FR-26, FR-28, Mermaid/D2 export | Med–High | Sprint 7–9 |
 | **M4 — Hardening** | Thread-safe active mode, perf, stress tests, docs, final samples | NFR-3, NFR-5, NFR-6, remaining | High | Sprint 10–12 |
@@ -500,8 +536,8 @@ guidance:
    feedback for the riskier M2/M3 designs.
 2. **Async + observer input (M2)** builds directly on the M1 core and is where most real-world
    integrations live (webhooks, gateways, buses).
-3. **Hierarchy/history (M3)** is the single largest source of subtle bugs in every reference library;
-   it benefits from a battle-tested M1/M2 core and a solid test suite first.
+3. **Hierarchy/history (M3)** is one of the most error-prone parts of any state machine engine; it
+   benefits from a battle-tested M1/M2 core and a solid test suite first.
 4. **Hardening (M4)** focuses on thread-safety and performance only after the semantics are stable.
 
 ---
@@ -598,7 +634,10 @@ machine.Configure(OrderState.Submitted)
   transitions, async actions/guards, error policies, config validation.
 - **Reactive tests** using Rx `TestScheduler` for virtual-time determinism (timers, timeouts, stream
   emission ordering, hot/cold semantics, unsubscribe).
-- **Concurrency stress tests** for queued/active mode (M2/M4).
+- **Concurrency stress tests** for queued/active mode (M2/M4): a custom xUnit + `System.Threading`
+  harness in which N workers fire random valid/invalid triggers concurrently, synchronized to start
+  together via a `Barrier` (random triggers generated with FsCheck); asserts no lost updates, no
+  unexpected exceptions, and a consistent final state (see O6).
 - **Property-based tests** (FsCheck) for state-transition invariants (e.g., "never transition to an
   unconfigured state", "permitted set matches configured transitions given guards").
 - **Benchmarks** (BenchmarkDotNet) for the hot path (NFR-5).
@@ -611,57 +650,66 @@ machine.Configure(OrderState.Submitted)
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Observable API is over-engineered / confusing | Adoption friction | Hybrid keeps `Fire()` simple; streams are additive. Docs + samples first. |
-| Hierarchy/history bugs (all reference libs struggle here) | Correctness | Defer to M3; model on Appccelerate's proven semantics; heavy test coverage. |
-| netstandard2.0 costs time (shims, `#if`) | Schedule | Resolved (§14.2): included; gate only modern niceties behind `#if`. |
+| Hierarchy/history bugs are subtle and easy to get wrong | Correctness | Defer to M3; model on proven, well-documented hierarchy semantics; heavy test coverage. |
+| netstandard2.0 costs time (shims, `#if`) | Schedule | Addressed in §14.2 / NFR-8: `netstandard2.0` is targeted; only modern niceties are gated behind `#if`. |
 | Thread-safety surprises in queued mode | Production incidents | Ship passive/immediate first (single-threaded, documented); active mode behind a clear opt-in. |
-| Scope creep (full workflow engine) | Schedule | Non-goals (§4.3) kept visible; WorkflowCore-style features explicitly out. |
+| Scope creep (full workflow engine) | Schedule | Non-goals (§4.3) kept visible; long-running workflow orchestration explicitly out. |
 | Rx dependency perceived as heavy | Adoption | System.Reactive is already ubiquitous; we depend on it directly, no wrapper bloat. |
 
 ---
 
 ## 13. Success Metrics / KPIs
 
-- Adoption in ≥ 3 distinct projects within 2 quarters of GA.
-- Feature-parity checklist against Stateless' most-used surface completed for M1 (§4.2 O2).
+- Feature-coverage checklist for the most-used constructs completed for M1 (§4.2 O2).
 - Zero reported race conditions in queued/active mode after the M4 stress suite.
 - ≥ 80% core coverage; all samples build and pass in CI.
-- Docs site live with API reference + the §8 samples by M4.
+- Docs available with API reference + the §8 samples by M4.
 
 ---
 
-## 14. Decisions & Open Items
+## 14. Baseline Requirements
 
-> All previously-open items in §14 are now **decided**. No blockers remain before Milestone 1.
+The requirements in this section form the current baseline for v1 and are considered stable, but they
+may still be revised while the PRD is in draft.
 
-### 14.1 (DECIDED) Observable model — **Option C (Hybrid)**
-The machine implements `IObservable<TState>` (producer) **and** accepts observable trigger input
-plus `Fire()`/`FireAsync()` (consumer). Confirmed Option C — see §5 for rationale and examples.
+### 14.1 Architecture
 
-### 14.2 (DECIDED) Target frameworks — **netstandard2.0 + net10.0**
-- **Definite:** `netstandard2.0` (max reach across projects) and `net10.0` (latest).
-- **`net8.0` is omitted** — it is nearing end-of-life and `net10.0` already covers modern consumers.
-- Multi-targeting costs: C# feature shims (`IsExternalInit` for `init`/records, `RequiredMemberAttribute`
-  for `required`) and a few `#if` gates — no functionality, testability, or API-quality sacrifice.
-- **Time & testing (resolved):** `TimeProvider` is not a blocker — keep it out of the public API;
-  implement time-based behavior on Rx `IScheduler` and test with `TestScheduler` virtual time;
-  use `TimeProvider` only for cosmetic timestamps gated behind `#if NET8_0_OR_GREATER` (defined on
-  net10.0 too; fallback `DateTimeOffset.UtcNow`) or the `Microsoft.Bcl.TimeProvider` backport.
-- **Async streams (resolved):** `IAsyncEnumerable` is not required — all async APIs are `Task`-based
-  and the reactive surface is `IObservable<T>`. If interop is ever wanted, System.Reactive 6.x ships
-  `ToObservable`/`ToAsyncEnumerable` and `Microsoft.Bcl.AsyncInterfaces` backports it to
+- The machine is a **hybrid**: an `IObservable<TState>` producer **and** an observable-input consumer
+  (implements `IObserver<TriggerWithParameters<TState, TTrigger>>`), plus `Fire()`/`FireAsync()` for
+  imperative input. See §5 for the full model.
+
+### 14.2 Target frameworks & time
+
+- Target **`netstandard2.0` + `net10.0`** (NFR-8); `net8.0` is not targeted.
+- Multi-targeting costs are limited to C# feature shims (`IsExternalInit` for `init`/records,
+  `RequiredMemberAttribute` for `required`) and a few `#if` gates — no functionality, testability, or
+  API-quality sacrifice.
+- **Time & testing:** `TimeProvider` is **not** part of the public API. Time-based behavior is
+  implemented on Rx `IScheduler` and tested with `TestScheduler` virtual time; `TimeProvider` is used
+  only for cosmetic timestamps, gated behind `#if NET8_0_OR_GREATER` — an SDK symbol defined
+  automatically for net8.0 **and later**, including net10.0 (netstandard2.0 falls back to
+  `DateTimeOffset.UtcNow`) — or the `Microsoft.Bcl.TimeProvider` backport.
+- **Async streams:** `IAsyncEnumerable` is not part of the public API — all async APIs are `Task`-based
+  and the reactive surface is `IObservable<T>` (NFR-11). If interop is ever wanted, System.Reactive
+  6.x ships `ToObservable`/`ToAsyncEnumerable`, and `Microsoft.Bcl.AsyncInterfaces` backports it to
   netstandard2.0.
 
-### 14.3 (DECIDED) API naming & identity
-- Package name: **`RxStateMachine`** (not `Rx.StateMachine`, not `ReactiveStateMachine`).
+### 14.3 API identity
+
+- Package name: **`RxStateMachine`** (FR-29).
 - `Fire`/`FireAsync` **return the resulting `Transition`** — sync `Transition<TState,TTrigger>`,
   async `Task<Transition<TState,TTrigger>>` — for fluent/assertive tests and callers that need the
-  transition result (see §10.2).
+  transition result (FR-30, see §10.2).
 
-### 14.4 (DECIDED) Misc
-- **No source generation** — a source-generated (compile-time) configuration variant is not currently
-  required; remains a non-goal and may be revisited later.
-- The `Errors` stream exposes rich **`StateMachineError`** (trigger, state, exception, policy).
-  Default error policy: **Throw**; **`Observe` is opt-in** via `StateMachineOptions`.
+### 14.4 Error handling & misc
+
+- The `Errors` stream exposes rich **`StateMachineError`** values (trigger, state, exception, policy)
+  (FR-31).
+- Default error policy is **Throw**; **Observe** is opt-in via `StateMachineOptions` (FR-19).
+- **No source generation** — a source-generated (compile-time) configuration variant is not required
+  and remains a non-goal; may be revisited later.
+- **No `[Obsolete]` on v1** — the API is expected to evolve as we build, so `[Obsolete]` is not
+  required on the first version (NFR-2).
 
 ---
 
@@ -670,7 +718,8 @@ plus `Fire()`/`FireAsync()` (consumer). Confirmed Option C — see §5 for ratio
 ### 15.1 Glossary
 - **State machine (FSM):** a model with a finite set of states, one current state, and guarded
   transitions between them triggered by triggers.
-- **Trigger:** the input that may cause a transition (called an *event* in Appccelerate/Stateless).
+- **Trigger:** the input that may cause a transition (sometimes called an *event* in other state
+  machine libraries).
 - **Guard:** a predicate that must return true for a transition to be permitted.
 - **Observable (`IObservable<T>`):** a push-based, lazily-composed stream of values.
 - **Hot vs cold:** a hot observable pushes regardless of subscribers and typically replays/loses
@@ -701,10 +750,12 @@ machine.Configure(OrderState.Shipped)
     .Permit(OrderTrigger.Deliver, OrderState.Delivered);
 ```
 
-**Mermaid** (`stateDiagram-v2`) — renders natively in GitHub, GitLab, and VS Code:
+**Mermaid** (`stateDiagram-v2`):
 
 ```mermaid
 stateDiagram-v2
+    direction LR
+
     [*] --> Draft
     Draft --> Submitted : Submit
     Submitted --> Paid : Pay
@@ -714,7 +765,7 @@ stateDiagram-v2
     Delivered --> [*]
 ```
 
-**D2** (`.d2`) — rendered with the [D2 CLI](https://d2lang.com) (e.g., `d2 order.d2 order.svg`):
+**D2** (`.d2`) — can be rendered with the [D2 CLI](https://d2lang.com):
 
 ```d2
 direction: right
@@ -738,11 +789,19 @@ Delivered -> end
 Notes:
 - Guards, entry/exit actions, and parameterized payloads can be annotated as edge labels/details
   (Mermaid `:label` and D2 edge labels) — the detail level is a formatter decision.
-- No DOT export will be produced (product decision, see FR-27).
 
-### 15.3 References
+### 15.3 References & further reading
+
+**State machine libraries** — widely used in the .NET ecosystem; provided here for reference, useful
+for comparing approaches, feature sets, and terminology when selecting or evaluating a state machine
+solution:
+
 - Stateless — https://github.com/dotnet-state-machine/stateless
 - Appccelerate.StateMachine — https://github.com/appccelerate/statemachine
 - Automatonymous / MassTransit — https://masstransit.io/documentation/configuration/sagas/automatonymous
 - WorkflowCore — https://github.com/danielgerlag/workflow-core
+
+**Supporting libraries** — the core dependency and testing tools this project builds on:
+
 - System.Reactive (Rx.NET) — https://github.com/dotnet/reactive
+- FsCheck (property-based testing) — https://github.com/fscheck/FsCheck
