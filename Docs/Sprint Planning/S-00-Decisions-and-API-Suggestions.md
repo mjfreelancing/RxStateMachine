@@ -295,9 +295,9 @@ public sealed class StateMachine<TState, TTrigger> : IObservable<TState>,
 
 | Item                | Proposed default                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| .NET SDK            | Latest stable **.NET 10 SDK** (10.0.x) — required for `net10.0`; builds `netstandard2.0` too                                           |
-| Library targets     | `netstandard2.0;net10.0` (NFR-8)                                                                                                       |
-| Test project target | `net10.0` (library stays multi-targeted)                                                                                               |
+| .NET SDK            | Latest stable **.NET 11 SDK** (11.0.x) — required for `net11.0`; builds `net10.0` and `netstandard2.0` too                                           |
+| Library targets     | `netstandard2.0;net10.0;net11.0` (NFR-8)                                                                                                       |
+| Test project target | `net11.0` (library stays multi-targeted)                                                                                               |
 | Test tooling        | xUnit (latest stable), FsCheck + FsCheck.Xunit, BenchmarkDotNet (latest), System.Reactive **6.x** pinned                               |
 | CI                  | GitHub Actions; matrix `ubuntu-latest` + `windows-latest`; build + test + pack                                                         |
 | Package             | `PackageId = RxStateMachine`, version `0.1.0` during dev, SemVer, XML docs embedded, deterministic build; publish to NuGet.org (later) |

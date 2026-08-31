@@ -106,7 +106,7 @@ sprint depends on the one(s) in **Depends on**.
 | ID   | Sprint                                     | Outcome (Definition of Done in a phrase)                                                                                                           | Key PRD refs                             | Depends on |
 | ---- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------- |
 | S-00 | **Decisions & API Suggestions**            | Working assumptions for D-01..D-10, suggested v1 API surface, env defaults — all provisional, each with a validate-via pointer                     | FR-29, NFR-2/8/9, §5, §10, §14           | PRD        |
-| S-01 | **Scaffolding & CI**                       | Green multi-targeted solution (netstandard2.0 + net10.0), test projects, CI, docs stub, benchmark harness stub, sample stub                        | M0, FR-29, NFR-7/8                       | S-00       |
+| S-01 | **Scaffolding & CI**                       | Green multi-targeted solution (netstandard2.0 + net10.0 + net11.0), test projects, CI, docs stub, benchmark harness stub, sample stub                        | M0, FR-29, NFR-7/8                       | S-00       |
 | S-02 | **State model, config & validation**       | Machine that configures, validates fail-fast, owns state, exposes `GetInfo` skeleton                                                               | FR-1, FR-2 (part), FR-10, FR-17 (part)   | S-01       |
 | S-03 | **Basic transitions & observability**      | `Permit` + `Fire` returning `Transition`; machine is `IObservable<TState>` (replays); `Transitions`/`StateChanges` streams; `OnTransitioned`       | FR-4, FR-11, FR-12/13, FR-20, FR-30      | S-02       |
 | S-04 | **Actions + internal & reentrant**         | `OnEntry`/`OnExit`/`OnEntryFrom`, `InternalTransition`, `PermitReentry`, `TransitionsCompleted`                                                    | FR-3, FR-7, FR-8, FR-12, FR-20           | S-03       |
@@ -160,6 +160,7 @@ behavior (an `FR`/`NFR`/`UC`/§ decision).
 | Date       | Sprint | Change                                                                    | PRD impact                                | PRD update? | Conflicts checked?        | Status |
 | ---------- | ------ | ------------------------------------------------------------------------- | ----------------------------------------- | ----------- | ------------------------- | ------ |
 | 2026-08-24 | —      | Adopted "no hard contracts / iterate via tests & samples" philosophy (§2) | None — aligns with PRD draft status (§14) | No          | n/a (adopted before S-00) | Agreed |
+| 2026-08-31 | —      | Added `net11.0` as an additional library target (`netstandard2.0;net10.0;net11.0`); tests/samples/SDK/CI use `net11.0` | NFR-8, §14.2, header | Yes         | README, S-00, S-01 updated            | Agreed |
 
 ---
 
@@ -170,7 +171,7 @@ RxStateMachine/
 ├── .github/workflows/ci.yml
 ├── Directory.Build.props
 ├── RxStateMachine.sln
-├── src/RxStateMachine/                  # netstandard2.0 + net10.0
+├── src/RxStateMachine/                  # netstandard2.0 + net10.0 + net11.0
 │   ├── RxStateMachine.csproj
 │   ├── StateMachine{TState,TTrigger}.cs
 │   ├── StateMachineConfiguration.cs
@@ -181,7 +182,7 @@ RxStateMachine/
 │   ├── Diagnostics/                     # (S-13)
 │   └── Validation/
 ├── tests/
-│   ├── RxStateMachine.Tests/            # xUnit, net10.0
+│   ├── RxStateMachine.Tests/            # xUnit, net11.0
 │   ├── RxStateMachine.Tests.Reactive/   # TestScheduler virtual time (S-07+)
 │   └── RxStateMachine.Tests.Stress/     # concurrency stress (S-14)
 ├── samples/

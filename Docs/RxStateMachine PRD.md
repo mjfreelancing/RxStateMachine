@@ -1,8 +1,8 @@
 # RxStateMachine — Product Requirements Document
 
 > **Status:** Draft </br>
-> **Last Updated:** 2026-08-24 </br>
-> **Target frameworks:** `netstandard2.0` + `net10.0` </br>
+> **Last Updated:** 2026-08-31 </br>
+> **Target frameworks:** `netstandard2.0` + `net10.0` + `net11.0` </br>
 > **Core dependency:** System.Reactive (Rx.NET)
 
 ---
@@ -456,12 +456,13 @@ from the core, and whether the friction justifies a dedicated library.
   virtual time (Rx `TestScheduler`). Time-based behavior is implemented on Rx `IScheduler`;
   `TestScheduler` provides virtual time for tests. `TimeProvider` is **not** part of the public API;
   it is used only for cosmetic timestamps, gated behind `#if NET8_0_OR_GREATER` — an SDK symbol
-  defined automatically for net8.0 **and later**, including net10.0 (netstandard2.0 falls back to
+  defined automatically for net8.0 **and later**, including net10.0 and net11.0 (netstandard2.0 falls back to
   `DateTimeOffset.UtcNow`) — or the `Microsoft.Bcl.TimeProvider` backport.
 - **NFR-7** Documentation: XML docs on all public members; API docs site (DocFX or similar); ≥ 8
   runnable samples.
-- **NFR-8** Compatibility targets: **netstandard2.0** + **net10.0**. **`net8.0` is not targeted** — it
-  is nearing end-of-life, and `net10.0` covers modern consumers. Multi-targeting costs are limited to
+- **NFR-8** Compatibility targets: **netstandard2.0** + **net10.0** + **net11.0**. **`net8.0` is not targeted** — it
+  is nearing end-of-life; `net10.0` (LTS) provides stability and `net11.0` (latest) covers modern
+  consumers. Multi-targeting costs are limited to
   C# feature shims (`IsExternalInit` for `init`/records, `RequiredMemberAttribute` for `required`) and
   a few `#if` gates — with no sacrifice to functionality, testability, or API quality.
 - **NFR-9** Semantic versioning; clean public API surface with an explicit public/`internal` boundary.
@@ -707,14 +708,14 @@ may still be revised while the PRD is in draft.
 
 ### 14.2 Target frameworks & time
 
-- Target **`netstandard2.0` + `net10.0`** (NFR-8); `net8.0` is not targeted.
+- Target **`netstandard2.0` + `net10.0` + `net11.0`** (NFR-8); `net8.0` is not targeted.
 - Multi-targeting costs are limited to C# feature shims (`IsExternalInit` for `init`/records,
   `RequiredMemberAttribute` for `required`) and a few `#if` gates — no functionality, testability, or
   API-quality sacrifice.
 - **Time & testing:** `TimeProvider` is **not** part of the public API. Time-based behavior is
   implemented on Rx `IScheduler` and tested with `TestScheduler` virtual time; `TimeProvider` is used
   only for cosmetic timestamps, gated behind `#if NET8_0_OR_GREATER` — an SDK symbol defined
-  automatically for net8.0 **and later**, including net10.0 (netstandard2.0 falls back to
+  automatically for net8.0 **and later**, including net10.0 and net11.0 (netstandard2.0 falls back to
   `DateTimeOffset.UtcNow`) — or the `Microsoft.Bcl.TimeProvider` backport.
 - **Async streams:** `IAsyncEnumerable` is not part of the public API — all async APIs are `Task`-based
   and the reactive surface is `IObservable<T>` (NFR-11). If interop is ever wanted, System.Reactive

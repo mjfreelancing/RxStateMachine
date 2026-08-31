@@ -21,7 +21,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 
 ### 2.1 Definition of Done
 
-- [ ] `src/RxStateMachine` multi-targets `netstandard2.0;net10.0`, nullable enabled, XML docs on.
+- [ ] `src/RxStateMachine` multi-targets `netstandard2.0;net10.0;net11.0`, nullable enabled, XML docs on.
 - [ ] A trivial xUnit test project runs green against the library.
 - [ ] A runnable smoke sample project runs and prints output.
 - [ ] GitHub Actions CI green: build + test + pack on `ubuntu-latest` and `windows-latest`.
@@ -40,7 +40,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 
 - **What it is:** building one project against several .NET frameworks at once. `netstandard2.0` is a
   _compatibility_ target (runs on .NET Framework 4.6.1+, .NET Core 2+, .NET 5+); `net10.0` is the
-  modern LTS. `TargetFrameworks = "netstandard2.0;net10.0"`.
+  current LTS and `net11.0` is the latest STS. `TargetFrameworks = "netstandard2.0;net10.0;net11.0"`.
 - **Example:** `dotnet build` produces an assembly usable by both old and new consumers.
 
 ### LangVersion
@@ -59,7 +59,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 ### `#if NET8_0_OR_GREATER`
 
 - **What it is:** a compile-time symbol gate. The SDK defines this automatically for net8.0 **and
-  later** (including net10.0); it is _not_ defined for netstandard2.0.
+  later** (including net10.0 and net11.0); it is _not_ defined for netstandard2.0.
 - **Example:** use `TimeProvider` only under this `#if`; fall back to `DateTimeOffset.UtcNow`
   elsewhere (NFR-6).
 
@@ -126,7 +126,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 - **Goal:** the multi-targeted library compiles with shared settings.
 - **Work to perform:**
   1. `src/RxStateMachine/RxStateMachine.csproj`:
-     `TargetFrameworks = "netstandard2.0;net10.0"`, `Nullable = enable`,
+     `TargetFrameworks = "netstandard2.0;net10.0;net11.0"`, `Nullable = enable`,
      `GenerateDocumentationFile = true`, `Deterministic = true`, package metadata
      (`PackageId = RxStateMachine`, `Version = 0.1.0`, description, authors, repository URL).
   2. `Directory.Build.props` at root: `LangVersion` (latest), `Nullable`, `ImplicitUsings`,
@@ -136,7 +136,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
   4. Add a placeholder file (e.g., `Placeholder.cs`) so the library has real content to compile;
      remove it in S-02.
 - **Files / locations:** `src/RxStateMachine/`, `Directory.Build.props`.
-- **Acceptance criteria:** `dotnet build src/RxStateMachine -c Release` succeeds for both targets.
+- **Acceptance criteria:** `dotnet build src/RxStateMachine -c Release` succeeds for all targets.
 - **Tests / Samples:** n/a (build-only).
 
 ### T3 — netstandard2.0 shim verification (NFR-8)
@@ -148,7 +148,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
   2. Add a test in the test project (T4) that constructs it and asserts the timestamp is populated.
 - **Files / locations:** `src/RxStateMachine/` (polyfill + a `PolyfillSmoke.cs`),
   `tests/RxStateMachine.Tests/`.
-- **Acceptance criteria:** compiles on both targets; test passes on net10.0.
+- **Acceptance criteria:** compiles on all targets; test passes on net11.0.
 - **Tests / Samples:** `PolyfillSmokeTests` (record + required + timestamp).
 - **Samples:** n/a.
 
@@ -156,8 +156,8 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 
 - **Goal:** a green xUnit project wired to the library.
 - **Work to perform:**
-  1. `tests/RxStateMachine.Tests` (xUnit, `net10.0`) with `<ProjectReference>` to the library.
-  2. Trivial smoke test: load the `RxStateMachine` assembly, assert it exists and reports both target
+  1. `tests/RxStateMachine.Tests` (xUnit, `net11.0`) with `<ProjectReference>` to the library.
+  2. Trivial smoke test: load the `RxStateMachine` assembly, assert it exists and reports all target
      frameworks (via reflection over `TargetFrameworkAttribute`); plus the T3 polyfill test.
 - **Files / locations:** `tests/RxStateMachine.Tests/`.
 - **Acceptance criteria:** `dotnet test` green.
@@ -169,7 +169,7 @@ code** exists. Nothing about the API is designed here; the goal is a reliable wo
 - **Goal:** a runnable console app that references the library (project ref) and prints output — the
   first "sample-as-integration-test".
 - **Work to perform:**
-  1. `samples/HelloRxStateMachine` (`net10.0` console).
+  1. `samples/HelloRxStateMachine` (`net11.0` console).
   2. Program prints "Hello RxStateMachine — targets: …" (reads the assembly attribute) and returns
      exit code 0.
 - **Files / locations:** `samples/HelloRxStateMachine/`.
@@ -222,7 +222,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "11.0.x"
       - run: dotnet restore
       - run: dotnet build -c Release --no-restore
       - run: dotnet test  -c Release --no-build
@@ -242,7 +242,7 @@ jobs:
   3. (Optional, nice-to-have) a tiny consumer test that references the **packed** nupkg via a local
      feed and builds — proves it's installable, not just project-referenceable.
 - **Files / locations:** `artifacts/`, `src/RxStateMachine/RxStateMachine.csproj`.
-- **Acceptance criteria:** nupkg contains lib/ for both targets + XML docs + symbols.
+- **Acceptance criteria:** nupkg contains lib/ for all targets + XML docs + symbols.
 - **Tests / Samples:** optional consumer smoke.
 
 ### T10 — Verify DoD & tidy
@@ -264,7 +264,7 @@ jobs:
 - **Context:** the acceptance path every developer runs after cloning.
 - **Walkthrough:**
   1. `dotnet restore` — downloads SDK-required packages.
-  2. `dotnet build -c Release` — compiles the multi-targeted library (both targets) + tests + sample.
+  2. `dotnet build -c Release` — compiles the multi-targeted library (all targets) + tests + sample.
   3. `dotnet test` — runs the smoke + polyfill tests (T3/T4).
   4. `dotnet run --project samples/HelloRxStateMachine` — prints the smoke message.
   5. `dotnet pack src/RxStateMachine -c Release -o artifacts` — produces the nupkg.
@@ -288,11 +288,11 @@ RxStateMachine/
 ├── .github/workflows/ci.yml
 ├── Directory.Build.props
 ├── RxStateMachine.sln
-├── src/RxStateMachine/           # netstandard2.0 + net10.0
+├── src/RxStateMachine/           # netstandard2.0 + net10.0 + net11.0
 │   ├── RxStateMachine.csproj
 │   ├── Placeholder.cs            # removed in S-02
 │   └── Polyfills/                # IsExternalInit, RequiredMemberAttribute
-├── tests/RxStateMachine.Tests/   # xUnit, net10.0
+├── tests/RxStateMachine.Tests/   # xUnit, net11.0
 ├── samples/HelloRxStateMachine/
 ├── benchmarks/RxStateMachine.Benchmarks/
 ├── docs/
@@ -304,7 +304,7 @@ RxStateMachine/
 ## 6. Tests & samples checklist
 
 - [ ] `AssemblySmokeTests` — assembly loads, targets reported (T4)
-- [ ] `PolyfillSmokeTests` — record + required + timestamp on net10.0 (T3/T4)
+- [ ] `PolyfillSmokeTests` — record + required + timestamp on net11.0 (T3/T4)
 - [ ] Smoke sample runs and prints expected output (T5)
 - [ ] CI green on ubuntu + windows (T8)
 - [ ] Pack verified — nupkg has both target libs + XML docs + symbols (T9)
@@ -315,7 +315,7 @@ RxStateMachine/
 
 - **netstandard2.0 + modern C# shims fail** → fallback: per-target `LangVersion`, or avoid the
   feature; T3 catches this before the engine depends on it.
-- **net10.0 SDK availability** → confirm `dotnet --list-sdks` shows 10.0.x before starting; install
+- **net11.0 SDK availability** → confirm `dotnet --list-sdks` shows 11.0.x before starting; install
   via the .NET SDK manager if needed.
 - **CI Windows quirks** (line endings, path casing) → normalize in gitattributes; CI runs catch it.
 - **NuGet restore of System.Reactive 6.x on netstandard2.0** → supported; pin the version in
@@ -344,12 +344,12 @@ RxStateMachine/
 
 **Next actions on resume:**
 
-1. Run `dotnet --list-sdks`; install .NET 10 SDK if missing.
+1. Run `dotnet --list-sdks`; install .NET 11 SDK if missing.
 2. Start at T1 and work through T10 in order.
 
 **Checkpoint notes:**
 
-- Uses S-00 §4.3 env defaults (SDK 10, GitHub Actions, package id `RxStateMachine`, v0.1.0).
+- Uses S-00 §4.3 env defaults (SDK 11, GitHub Actions, package id `RxStateMachine`, v0.1.0).
 - Consider Central Package Management (`Directory.Packages.props`) for pinned versions (System.Reactive 6.x, xUnit, FsCheck, BenchmarkDotNet).
 
 ---
