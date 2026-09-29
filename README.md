@@ -105,8 +105,17 @@ The library is designed around a small but powerful core:
   this transition blocked?"_
 - **Explicit error handling** — configurable policies for unhandled triggers and exceptions, with
   rich error objects.
-- **Planned (roadmap)** — hierarchical states with history, snapshot persistence, timer/timeout
-  helpers, scheduler control, thread-safe queued firing, and Mermaid/D2 diagram export.
+- **Hierarchical states** — nested states with selectable history and a membership test that
+  covers descendants.
+- **Timers & timeouts** — fire a trigger after a delay, or after the machine has sat in a state
+  for too long, with the timing cancelled automatically when that state is left.
+- **Persistence** — keep the current state in your own store, or capture and restore a snapshot so
+  a long-running process survives a restart.
+- **Firing modes** — immediate by default, or an opt-in queued mode that is safe to drive from
+  many threads at once.
+- **Scheduler control** — choose the scheduler that notifications, timers, and queued work run on,
+  so behaviour is deterministic under virtual time in tests.
+- **Diagram export** — render the configured machine as Mermaid or D2 for documentation.
 
 ## A quick look
 
@@ -132,15 +141,6 @@ paymentGateway.PaymentSucceeded
 
 machine.Fire(OrderTrigger.Submit);
 ```
-
-## Status
-
-**Early stage.** The project is currently in the **planning phase** — the product requirements,
-architecture, and sprint plan are drafted; there is no production code yet. The public API surface is
-deliberately _not_ frozen and will evolve as it is validated through tests and sample applications.
-
-See the [product requirements](./Docs/RxStateMachine%20PRD.md) for the full specification and the
-[sprint plan](./Docs/Sprint%20Planning/README.md) for the roadmap.
 
 ## License
 
