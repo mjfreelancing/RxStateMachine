@@ -35,12 +35,16 @@ reentrancy-protected) firing mode.
 **Actions**
 - CORE-10 A state MUST support entry actions, exit actions, and entry actions specific to a trigger.
 - CORE-11 Transition-level actions and transition-completed callbacks MUST be supported.
-- CORE-12 Activation and deactivation hooks MUST be accepted and follow the lifecycle in DD-10.
+- CORE-12 Whether the initial state's entry actions run when the machine is created MUST be decided
+  explicitly, documented, and identical however the machine is constructed. There is no separate
+  start/stop lifecycle and no activation hooks at this stage; activation arrives with snapshot
+  restore in feature 08 (DD-10).
 - CORE-13 Actions and notifications MUST run in the order defined in DD-08.
 
 **Payloads and results**
 - CORE-14 A trigger MUST be able to carry a typed payload available to guards and actions without
-  casting; a payload of the wrong type is refused with a clear message.
+  casting; a payload of the wrong type is rejected with an exception naming the expected and the
+  supplied type (DD-11).
 - CORE-15 `Fire` MUST return the resulting transition (source, destination, trigger, payload, kind,
   time) as described in DD-11 and DD-12.
 
@@ -85,7 +89,9 @@ DD-06, DD-07, DD-08, DD-09, DD-10, DD-11, DD-12.
 - Is a permit to the same state a reentry or a configuration error?
 - The final closed set of transition kinds (DD-11).
 - Shape of the payload-carrying trigger wrapper (DD-02).
-- Are activation/deactivation hooks required at this stage or only from feature 07?
+- Whether the initial state's entry actions run on construction (CORE-12). Proposed: they do not, so
+  construction has no side effects; a consumer who wants them fires an explicit trigger, or activates
+  the machine once feature 08 provides activation.
 
 ## Out of scope
 Async actions and guards (05), observable streams and observer input (03), introspection queries

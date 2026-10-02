@@ -82,8 +82,8 @@ How each target is measured is defined in [design-decisions.md](design-decisions
   engine.
 - **O4.** Transitions are allocation-conscious: a simple synchronous transition with no actions
   completes in microseconds and does not allocate on the hot path (benchmarked).
-- **O5.** Provide at least 8 documented, runnable sample scenarios ([use-cases.md](use-cases.md))
-  spanning web, IoT, payment, workflow, and UI domains.
+- **O5.** Provide a documented, runnable sample for each use case in [use-cases.md](use-cases.md).
+  The set is open-ended, with no fixed count, and grows as use cases are discovered.
 - **O6.** Thread-safety: queued mode passes a concurrency stress test (for example, 8 workers × 10,000
   random valid and invalid triggers) with no lost updates or unexpected exceptions.
 

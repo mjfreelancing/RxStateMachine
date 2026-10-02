@@ -6,7 +6,7 @@
 | -------- | -------------- |
 | [vision.md](vision.md) | Vision, problem, goals, objectives, non-goals |
 | [observable-model.md](observable-model.md) | The producer/consumer model, streams, worked examples |
-| [use-cases.md](use-cases.md) | The ten example scenarios the library must support |
+| [use-cases.md](use-cases.md) | Example scenarios the library must support; the set is open-ended |
 | [design-rationale.md](design-rationale.md) | Why the hybrid design; ideas borrowed from other libraries |
 | [glossary.md](glossary.md) | Terms |
 | [references.md](references.md) | Related libraries and tools |

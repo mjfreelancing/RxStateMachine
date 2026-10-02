@@ -42,8 +42,7 @@ flowchart LR
 - **Producer side (outputs):** the machine exposes streams for _current state_, _transitions_, _guard
   results_, _permitted triggers_, and _errors_.
 - **Consumer side (inputs):** triggers arrive either imperatively (`Fire(...)`) or by piping an
-  upstream observable into the machine (for example,
-  `messageBus.Observe<OrderEvent>().Subscribe(machine)`).
+  upstream observable into the machine (for example, `messageBus.Observe<OrderEvent>()`).
 
 ## Architecture baseline
 
@@ -56,10 +55,12 @@ The machine is **both** a producer and a consumer:
 - **Consumer.** Triggers are accepted two ways, driving the same transition engine so there is exactly
   one behavior regardless of how a trigger arrives:
   1. **Imperative** — `Fire(...)` / `FireAsync(...)`.
-  2. **Reactive** — the machine is an observer of triggers, so any observable can be piped directly
-     in: `messageBus.Observe<OrderEvent>().Subscribe(machine)`. Payload-carrying triggers use a
-     wrapper that pairs a trigger with its payload (see [design-decisions.md](design-decisions.md),
-     DD-02).
+  2. **Reactive** — any observable of triggers can be piped straight into the machine, for example
+     `messageBus.Observe<OrderEvent>()`. Payload-carrying triggers use a wrapper that pairs a
+     trigger with its payload (see [design-decisions.md](design-decisions.md), DD-02). The exact
+     shape of this input surface — the machine as an `IObserver`, or a method that takes an
+     observable and returns an `IDisposable` — is settled in feature 03; the behaviour is the same
+     either way, and the subscription is independently disposable.
 
 **Benefits of this structure:**
 
@@ -74,7 +75,7 @@ The machine is **both** a producer and a consumer:
 | -------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Current state        | `IObservable<TState>` (machine itself)            | Hot, replays last (`BehaviorSubject`-backed) so late subscribers get the current state  |
 | State changed        | `IObservable<StateChange<TState>>`                | `Previous`, `Current`, `Timestamp`, `IsReentry`, `IsInternal`                           |
-| Transition           | `IObservable<Transition<TState,TTrigger>>`        | `Source`, `Destination`, `Trigger`, payload, kind, duration                             |
+| Transition           | `IObservable<Transition<TState,TTrigger>>`        | `Source`, `Destination`, `Trigger`, payload, kind, timestamp (duration undecided — DD-12) |
 | Transition completed | `IObservable<Transition<TState,TTrigger>>`        | Fired after the last entry action completes                                             |
 | Guard result         | `IObservable<GuardResult<TState,TTrigger>>`       | Every guard evaluation (for logging, tests, and "why blocked?" UI)                      |
 | Permitted triggers   | `IObservable<PermittedTriggers<TState,TTrigger>>` | Re-emitted when the state changes; also queryable via `GetPermittedTriggers()`          |
@@ -115,7 +116,7 @@ straight into the machine, and cancel an order that stalls in `Submitted`.
 ```csharp
 paymentGateway.PaymentSucceeded        // IObservable<PaymentReceipt>
     .Select(receipt => new TriggerWithParameters<OrderTrigger, PaymentReceipt>(OrderTrigger.Pay, receipt))
-    .Subscribe(machine);               // payload-carrying triggers use the wrapper
+    .Subscribe(machine);               // illustrative: the input surface is settled in feature 03
 
 // A timeout scoped to the state: armed on entering Submitted, cancelled automatically on leaving it
 machine.Configure(OrderState.Submitted)

@@ -18,8 +18,7 @@ RxStateMachine/                            (library)
 ├── TriggerWithParameters.cs
 ├── StateMachineOptions.cs                 (Scheduler, FiringMode, UnhandledTriggerPolicy, ExceptionPolicy)
 ├── Reactive/
-│   ├── ObservableStateMachineExtensions.cs (DistinctUntilChanged-style helpers, timer helpers)
-│   └── StateMachineObserver.cs            (optional convenience base for lifecycle observers)
+│   └── ObservableStateMachineExtensions.cs (DistinctUntilChanged-style helpers, timer helpers)
 ├── Persistence/        IStateMachinePersistence, SnapshotPersistence
 ├── Diagnostics/        MermaidFormatter, D2Formatter, TextReport
 └── Validation/         StateMachineValidator (fail-fast config checks)
@@ -64,7 +63,8 @@ public sealed class StateMachine<TState, TTrigger> : IObservable<TState>, IObser
 }
 ```
 
-Known inconsistencies in this sketch, to be resolved at planning time: the observer type for plain
+Known inconsistencies in this sketch, to be resolved at planning time: whether the input surface is
+an `IObserver` implementation at all (an open question in feature 03), the observer type for plain
 triggers versus payload wrappers (DD-02), and the two different generic shapes used for
 `TriggerWithParameters`.
 

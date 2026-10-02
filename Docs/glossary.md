@@ -19,7 +19,14 @@
 - **Payload:** typed data carried by a trigger and available to guards and actions.
 - **Blocked vs fault:** *blocked* means no guard permitted the trigger (an expected outcome); a *fault*
   is an exception thrown by consumer code such as a guard or action.
-- **Error policy:** how failures are handled — `Throw`, `Observe`, or `Ignore`
+- **Unhandled:** the current state has no registration at all for the trigger — distinct from
+  *blocked*, where a registration exists but no guard permitted it (DD-11).
+- **Otherwise:** an optional destination used when none of a trigger's guards pass (DD-06).
+- **Dynamic destination:** a destination chosen by a function at firing time rather than fixed in the
+  configuration.
+- **Activation / deactivation:** consumer-invoked hooks that run for the state the machine already
+  occupies, without a transition; introduced with snapshot restore (DD-10).
+- **Error policy:** how failures are handled — `Throw` or `Observe`
   ([design-decisions.md](design-decisions.md), DD-13).
 - **Firing mode:** *immediate* (single-threaded, reentrancy-protected) or *queued* (safe for
   concurrent callers) (DD-04).

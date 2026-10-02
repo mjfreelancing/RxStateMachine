@@ -40,8 +40,9 @@ functionality without knowing Rx.
   (DD-13).
 
 **Scheduling, time, lifecycle**
-- OBS-16 An optional scheduler (default `Scheduler.Default`) MUST determine where notifications are
-  raised; consumers can still observe on any scheduler themselves.
+- OBS-16 Where notifications are delivered MUST be stated explicitly and MUST be consistent with the
+  ordering in DD-08. A scheduler MUST be injectable for the machine's own timed work; consumers can
+  still observe on any scheduler themselves.
 - OBS-17 Timestamps MUST come from the injected scheduler/clock so tests can use virtual time.
 - OBS-18 Disposal MUST behave as in DD-10.
 
@@ -70,6 +71,17 @@ DD-02, DD-08, DD-10, DD-13, DD-15, DD-22.
 - What happens when observable input arrives concurrently in immediate mode: rejected, queued, or
   serialized?
 - Does an internal transition re-emit the current state, or only the state-change stream?
+- The shape of the trigger-input surface: does the machine implement `IObserver<…>`, so an upstream
+  can `Subscribe(machine)`, or does it expose a method that takes an observable and returns an
+  `IDisposable`? Proposed: the second. It satisfies OBS-13 and OBS-14 without making `OnError` and
+  `OnCompleted` public, and avoids needing two `IObserver` implementations for plain and
+  payload-carrying triggers (DD-02).
+- Where notifications are delivered by default (OBS-16). Proposed: synchronously on the firing
+  thread, so `Fire` returns only once subscribers have seen the change and DD-08's order is directly
+  observable; the injected scheduler governs timers and any explicitly asynchronous delivery. The
+  alternative — delivering on `Scheduler.Default` by default — makes delivery asynchronous, weakens
+  what DD-08 guarantees, and breaks the UI-binding examples in
+  [observable-model.md](../observable-model.md).
 
 ## Out of scope
 Error policy behaviour beyond "publish on errors stream" (05), timers (06), queued mode (10).

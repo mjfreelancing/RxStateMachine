@@ -26,8 +26,6 @@ returns to the right place.
 - HIE-09 Each state MUST have at most one parent; cycles are forbidden.
 - HIE-10 Hierarchy configuration MUST be validated at configuration time (unknown superstate, cycles,
   a superstate used as a destination without an initial substate) and closed after the first trigger.
-- HIE-11 Activation/deactivation hooks MUST gain nesting semantics (run as a superstate becomes
-  active/inactive).
 - HIE-12 Introspection (permitted triggers, machine description) MUST include inherited transitions
   and the hierarchy.
 - HIE-13 The remembered-history value MUST be expressible in a storage-neutral form for snapshots
@@ -60,4 +58,7 @@ DD-06, DD-07, DD-08, DD-10, DD-18.
 - Whether orthogonal regions are permanently out of scope (currently: yes).
 
 ## Out of scope
-Orthogonal (parallel) regions, snapshot persistence (08), export rendering (09).
+Orthogonal (parallel) regions, snapshot persistence (08), export rendering (09), and
+activation/deactivation hooks — those are introduced with snapshot restore in feature 08, where
+their hierarchy semantics are defined (DD-10). (`HIE-11` held that requirement; the identifier is
+retired, not reused.)

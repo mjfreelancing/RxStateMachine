@@ -40,8 +40,9 @@ entity) instead of in memory.
 - TES-E6 The external store changes between two reads (another process wrote it).
 - TES-E7 The getter or setter throws.
 - TES-E8 A state entered by reentry restarts its timeout.
-- TES-E9 The scheduler is shut down or paused.
-- TES-E10 Large numbers of machines each with timers do not create unbounded resources.
+- TES-E9 The store holds no value yet, or returns a value that is not a configured state: both are
+  rejected with a message naming the offending value; the machine never silently falls back to an
+  initial state.
 
 ## Use-case coverage
 UC-3, UC-4, UC-6, UC-8 — see [use-cases.md](../use-cases.md).

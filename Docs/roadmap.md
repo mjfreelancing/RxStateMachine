@@ -43,7 +43,7 @@ Each feature has a brief in [features/](features/) that is the input to one spec
 | ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
 | Observable API is over-engineered / confusing           | Adoption friction    | Hybrid keeps `Fire()` simple; streams are additive. Docs and samples first.                            |
 | Hierarchy/history bugs are subtle and easy to get wrong | Correctness          | Built late, on a proven core; modelled on well-documented hierarchy semantics; heavy test coverage.    |
-| netstandard2.0 costs time (shims, `#if`)                | Effort               | `netstandard2.0` is targeted; only modern niceties are gated behind `#if`; shims are limited.          |
+| netstandard2.0 costs time (shims, `#if`, an extra test leg) | Effort           | Whether to keep it is an open decision in feature [01](features/01-foundations.md). If kept: shims stay `internal` and limited, and the same suite runs on a runtime that resolves that asset. |
 | Thread-safety surprises in queued mode                  | Production incidents | Immediate (single-threaded) mode ships first and is documented; queued mode is a clear opt-in.         |
 | Scope creep (full workflow engine)                      | Effort               | Non-goals ([vision.md](vision.md)) kept visible; long-running workflow orchestration is out.           |
 | Rx dependency perceived as heavy                        | Adoption             | System.Reactive is already ubiquitous; the library depends on it directly, with no wrapper.            |
@@ -54,4 +54,4 @@ Each feature has a brief in [features/](features/) that is the input to one spec
 - Feature-coverage checklist for the most-used constructs is complete.
 - Zero race conditions found by the stress suite in queued mode.
 - At least 80% line coverage of the core engine; every sample builds and passes in CI.
-- API reference and the use-case samples are published.
+- XML documentation is complete and every use-case sample builds and runs in CI.

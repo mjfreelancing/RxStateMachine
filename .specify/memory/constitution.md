@@ -1,28 +1,3 @@
-<!--
-SYNC IMPACT REPORT (temporary — remove before committing)
-Version change: (blank template) → 1.0.0
-Modified principles: none (initial ratification)
-Added principles:
-  I. Observable-First, Framework-Agnostic Core
-  II. Public API Discipline & Versioning
-  III. Type Safety & Fail-Fast Configuration
-  IV. Async, Concurrency & Determinism
-  V. Test-First (NON-NEGOTIABLE)
-  VI. Performance
-  VII. Code Quality & Maintainability
-  VIII. Documentation, Samples & Simplicity
-Added sections:
-  Platform, Packaging & Security Constraints
-  Continuous Integration & Development Workflow
-  Governance
-Removed sections: none
-Source: Docs/engineering-standards.md (sections 1-12 mapped: 1→I, 2→II, 3→III, 4→IV, 5→V,
-  6→VI, 7→VII, 10→VIII, 8+9→Platform section, 11+12→Workflow section and Governance)
-Templates reviewed, not modified (this command writes only the constitution):
-  .specify/templates/plan-template.md, spec-template.md, tasks-template.md, checklist-template.md
-Follow-up TODOs: none
--->
-
 # RxStateMachine Constitution
 
 ## Core Principles
@@ -82,11 +57,12 @@ Rationale: mistakes must surface at compile time or startup, never as production
 - Library code MUST NOT block on async work (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`).
 - Async APIs MUST be `Task`-based, accept an optional `CancellationToken`, and use
   `ConfigureAwait(false)` internally. `IAsyncEnumerable` MUST NOT be part of the public API.
-- Schedulers MUST be injected (`IScheduler`, default `Scheduler.Default`), never ambient. There
-  MUST be no static mutable state and no hidden dependence on wall-clock time, culture, or thread
-  state.
-- `TimeProvider` MUST NOT appear in the public API; it MAY be used for cosmetic timestamps behind
-  `#if NET8_0_OR_GREATER`, with `DateTimeOffset.UtcNow` as the `netstandard2.0` fallback.
+- Schedulers MUST be injected (`IScheduler`, default `Scheduler.Default` for the machine's own timed
+  work), never ambient. There MUST be no static mutable state and no hidden dependence on
+  wall-clock time, culture, or thread state.
+- Every timestamp the machine produces MUST come from the injected scheduler's clock, so timestamps
+  are deterministic under virtual time. `TimeProvider`, `DateTime.Now`, and `DateTimeOffset.UtcNow`
+  MUST NOT be used to produce them, and `TimeProvider` MUST NOT appear in the public API.
 - Immediate mode MUST be single-threaded and reentrancy-protected. Concurrent `Fire` is supported
   only in the explicit queued mode, which MUST NEVER be enabled implicitly.
 - Locks MUST NOT be held across an `await` or while invoking consumer-supplied code (guards,
@@ -98,9 +74,10 @@ Rationale: mistakes must surface at compile time or startup, never as production
 Rationale: blocking causes deadlocks and starvation in UI, server, and IoT hosts, and injectable
 schedulers are what make deterministic virtual-time testing possible.
 
-### V. Test-First (NON-NEGOTIABLE)
-- Tests MUST be written before implementation: write the test, see it fail for the right reason,
-  then implement (red → green → refactor). A bug fix MUST begin with a failing regression test.
+### V. Test-First
+- Tests SHOULD be written before implementation (red → green → refactor). A bug fix MUST begin with
+  a failing regression test, and core engine behaviour (transition semantics, reentrancy,
+  concurrency) MUST have its tests written before the implementation.
 - Unit tests MUST use xUnit.v3 (the `xunit.v3` packages) and MUST cover transition correctness,
   guard ordering, reentry, internal transitions, async actions and guards, error policies, and
   configuration validation.
@@ -113,7 +90,9 @@ schedulers are what make deterministic virtual-time testing possible.
   triggers, started together with a barrier, asserting no lost updates, no unexpected exceptions,
   and a consistent final state. Failing runs MUST be replayable from a logged seed.
 - Core-engine line coverage MUST be at least 80%. Coverage is a floor, not a substitute for
-  behaviour tests. Tests MUST run against every target framework.
+  behaviour tests. The same suite MUST run on every target runtime. A target that is not a runtime
+  (`netstandard2.0`) MUST be exercised by running that same suite on a runtime that resolves its
+  asset, so the compatibility code path is executed rather than merely compiled.
 - Tests MUST be independent and order-insensitive, MUST assert observable behaviour rather than
   implementation details, and MUST have names that state scenario and expected outcome. Flaky
   tests MUST be fixed or removed, never retried or ignored.
@@ -129,9 +108,18 @@ concurrency, and hierarchy are cheap to prevent and expensive to diagnose downst
   evidence.
 - Configuration is one-time work and MUST NOT be repeated per transition. Exposing the observable
   surface MUST NOT allocate per subscription beyond what the subscription needs.
-- Hot-path performance MUST be tracked with BenchmarkDotNet against a stored baseline; a
-  regression beyond the agreed relative threshold MUST block release. Optimisations that reduce
-  clarity MUST be justified by benchmark results.
+- A BenchmarkDotNet project MUST exist and be runnable locally. Absolute timings are not
+  comparable between machines (a developer machine and a CI runner differ), so latency is judged
+  by a before/after comparison run on the same machine at implementation time, not against a
+  stored baseline or a CI threshold.
+- A feature that touches the hot path (transition engine, guard evaluation, observable surface)
+  MUST record a before/after benchmark comparison in its plan or tasks; any other feature
+  states "no hot-path impact". An unexplained regression in that comparison MUST be justified or
+  reworked before merge.
+- The zero-allocation guarantee is machine-independent and MUST be enforced on every change by a
+  deterministic test, on every target runtime whose BCL exposes a per-thread allocation measurement;
+  where a runtime does not, the limitation MUST be stated rather than hidden. Optimisations that
+  reduce clarity MUST be justified by benchmark results.
 - How each performance target is measured is defined in `Docs/design-decisions.md` (DD-22).
 
 Rationale: the machine is embedded in UI handlers, message pumps, and processing loops, where
@@ -140,9 +128,8 @@ avoidable allocation and per-transition setup show up as throughput loss and GC 
 ### VII. Code Quality & Maintainability
 - Code style MUST be defined in a committed `.editorconfig` and enforced in CI
   (`dotnet format --verify-no-changes` or equivalent); style is not debated in review.
-- Methods and types MUST have a single, clear responsibility. Cyclomatic complexity and method
-  length MUST be bounded by analyzer thresholds configured in the repository; a suppression MUST
-  carry a written justification.
+- Methods and types MUST have a single, clear responsibility. A suppression MUST carry a written
+  justification.
 - Composition over inheritance, small focused abstractions, and immutability by default MUST be
   preferred. An abstraction, option, or extension point MUST NOT be added for a hypothetical need.
 - Exceptions MUST be specific (no throwing or catching bare `Exception` except at a documented
@@ -150,8 +137,11 @@ avoidable allocation and per-transition setup show up as throughput loss and GC 
   state and trigger were involved, and how to fix it.
 - Compiler and analyzer warnings MUST be errors. Suppression MUST be as narrow as possible
   (scoped `#pragma` or attribute) with a justification, never global.
-- Comments MUST explain why, not what. Dead code, commented-out code, and `TODO`s without a
-  tracked issue MUST NOT be merged.
+- Comments MUST explain why, not what. Dead code and commented-out code MUST NOT be merged.
+  Deferred work MUST be tracked within the feature structure (a task in the current feature's
+  tasks, an addition to the brief of the later feature it belongs to, or a new feature) and not in
+  an external issue tracker. A `TODO` comment MUST point at such an item; an untracked `TODO` MUST
+  NOT be merged.
 - Library code MUST NOT use reflection, `dynamic`, or static mutable state.
 - Analyzers MUST be enabled at the latest recommended level or stricter, and centralised in
   repository-wide build properties.
@@ -160,66 +150,75 @@ Rationale: a library stays trustworthy only if quality rules are mechanical and 
 than dependent on who reviews a change.
 
 ### VIII. Documentation, Samples & Simplicity
-- 100% of public members MUST have XML documentation (a missing-doc warning is an error),
-  including exceptions thrown and the threading and hot/cold behaviour of streams. The API
-  reference MUST be updated in the same change that alters the public surface.
-- Every use case in `Docs/use-cases.md` MUST have a runnable, documented sample; at least 8
-  samples spanning web, IoT, payment, workflow, and UI domains MUST ship.
+- 100% of public members MUST have XML documentation (a missing-doc warning is an error). Where
+  relevant, the documentation SHOULD also state exceptions thrown and the threading and hot/cold
+  behaviour of streams. The XML
+  documentation MUST be updated in the same change that alters the public surface. A generated
+  documentation site or user guides are optional and are not a gate.
+- Each use case in `Docs/use-cases.md` MUST end up with a runnable sample. The set of use cases and
+  samples is open-ended and grows as use cases are discovered; there is no fixed count or domain
+  list.
 - The simplest design that satisfies the requirement MUST be preferred. Later features MUST NOT
   leak partial designs into earlier features' public API.
 - The non-goals in `Docs/vision.md` MUST NOT be built into the core without a constitutional
   amendment. Saga-style usage is supported, but compensation, distributed coordination, and
   long-running workflow scheduling belong in a separate companion library.
-- The repository `README.md` MUST describe the product only, every code example in it MUST
-  compile and run in CI, and it MUST NOT link to internal planning documents.
+- The repository `README.md` MUST describe the product only. It MAY link to the consumer-facing
+  documents in `Docs/` (vision, observable model, use cases, glossary, references, diagrams) and
+  MUST NOT link to the internal planning documents: `Docs/roadmap.md`, `Docs/features/`,
+  `Docs/design-decisions.md`, `Docs/engineering-standards.md`, `Docs/api-sketch.md`, and
+  `Docs/saga-exploration.md`. Its code examples SHOULD be taken from the samples (which build in CI)
+  so they stay correct.
 
 Rationale: low-friction adoption depends on excellent documentation and a focused scope; scope
 creep is a named project risk.
 
 ## Platform, Packaging & Security Constraints
 
-- **Target frameworks:** `netstandard2.0`, `net10.0`, `net11.0`. `net8.0` is not targeted.
+- **Target frameworks:** `netstandard2.0`, `net10.0`, `net11.0`. Earlier `net*` targets are not
+  carried: .NET 8 and .NET 9 both reach end of support in November 2026. A declared target served by
+  a preview SDK MUST build and be tested like any other; there is no preview carve-out.
   Multi-targeting differences MUST be confined to language-feature shims (`IsExternalInit`,
-  `RequiredMemberAttribute`) and narrow `#if` gates; public behaviour MUST be identical on every
-  target.
+  `RequiredMemberAttribute`, both declared `internal` so they cannot collide with a consumer's own)
+  and narrow `#if` gates; public behaviour MUST be identical on every target.
 - **Dependencies:** the only runtime dependency MUST be `System.Reactive` (6.x), plus the BCL and
   unavoidable compatibility backports. No DI, UI, messaging, ORM, serializer, or
-  logging-framework dependencies; integrations are documentation examples only. Adding a runtime
-  dependency or a target framework MUST be justified in the plan.
+  logging-framework dependencies; integrations are documentation examples only.
 - **Package:** a single NuGet package named `RxStateMachine`, MIT licensed, with README, license
   expression, repository URL, and icon in the package metadata.
 - **Reproducibility:** builds MUST be deterministic, with SourceLink and symbol packages. Package
-  versions come from one source. Package validation against the previous release MUST run for
-  stable releases. Packages MUST be published only from CI, never from a developer machine.
+  versions come from one source. Package validation MUST run on every pack: framework-compatibility
+  validation, so the public surface of each target asset is checked against the others, and baseline
+  validation against the previous release for stable releases. Packages MUST be published only from
+  CI, never from a developer machine.
   Central package version management and repository-wide build properties MUST be used.
 - **Security:** no dynamic code loading and no deserialization of untrusted input in the core.
-  Dependencies MUST be scanned for known vulnerabilities in CI on every change and on a schedule.
-  A `SECURITY.md` MUST describe how to report vulnerabilities. New dependencies MUST be justified
-  and pinned centrally. Secrets MUST never be stored in the repository.
+  Dependencies MUST be scanned for known vulnerabilities in CI on every change and on a schedule
+  (a scheduled workflow whose failure is visible to the maintainer satisfies this). A `SECURITY.md`
+  MUST describe how to report vulnerabilities. Dependencies MUST be pinned centrally. Secrets MUST
+  never be stored in the repository.
 
 ## Continuous Integration & Development Workflow
 
-- **Platform:** CI runs on GitHub Actions. The repository owner has no prior GitHub Actions
-  experience, so every CI artefact MUST be reviewable by a non-expert: each workflow file MUST
-  have a comment block saying, in plain language, what it does, when it runs, and what it needs;
-  each step MUST have a human-readable name and a one-line comment explaining why it exists; a
-  guide MUST explain how to open a workflow run, read a pass/fail result, find a failing step's
-  log, and re-run a job, with no assumed prior knowledge; and a glossary of the terms used
-  (workflow, job, step, runner, trigger, secret, artefact) MUST be provided.
-- **Gates:** on every proposed change CI MUST restore, build every target framework with zero
-  warnings, run the full test suite on every target, check formatting, run analyzers, build and
-  run the samples, pack, and validate the package. A red build MUST block merge.
+- **Platform:** CI runs on GitHub Actions. Each workflow file MUST begin with a plain-language
+  comment saying what it does, when it runs, and what it needs, and each step MUST have a
+  human-readable name.
+- **Gates:** on every push to `main` and every pull request, CI MUST restore, build every target
+  framework with zero warnings, run the full test suite on every target runtime, check formatting,
+  run analyzers, build and run the samples, pack, and validate the package. A red build MUST block a release, and MUST
+  block merge when a pull request is used.
 - **Publishing:** MUST be a separate, explicit, CI-only step that is safe to re-run without
   creating a duplicate release. CI MUST NOT contain secrets in plain text; secrets use the
   platform's secret store.
 - **Sequencing:** features are built in the order of `Docs/roadmap.md`. A later feature MUST NOT
   start before its prerequisites are complete.
-- **Pull requests:** every change MUST arrive as a small pull request focused on one concern and
-  meeting the Definition of Done: tests written first and passing, analyzers clean, public-API
-  baseline updated, XML docs, samples, and changelog (Keep a Changelog format) updated, and no
-  unjustified suppressions.
-- **Review:** reviewers MUST check each change against this constitution; a violation requires a
-  fix or a justified, recorded exception.
+- **Changes:** a change SHOULD be small and focused on one concern. Pull requests are optional.
+  Every change MUST meet the Definition of Done: tests passing, analyzers clean, public-API
+  baseline updated, XML docs updated, deferred work tracked within the features, and no
+  unjustified suppressions. Release notes are generated by the platform; no changelog file is
+  maintained.
+- **Review:** the maintainer (optionally with an agent-assisted review) MUST check each change
+  against this constitution; a violation requires a fix or a justified, recorded exception.
 - **Commits and releases:** commits MUST be focused and messages MUST describe the why; the
   release process MUST tag the commit that produced the published package.
 
@@ -228,14 +227,14 @@ creep is a named project risk.
 This constitution supersedes other project practices. Where any planning document conflicts with
 it, the constitution wins until amended.
 
-- **Amendments:** proposed with a written rationale, reviewed, and recorded as a versioned change
-  to this document. The version line below MUST be updated on every amendment.
+- **Amendments:** made with a written rationale and recorded as a versioned change to this
+  document. The version line below MUST be updated on every amendment.
 - **Versioning policy:** MAJOR for backward-incompatible governance changes or principle
   removals/redefinitions; MINOR for a new principle or materially expanded guidance; PATCH for
   clarifications, wording fixes, and other non-semantic refinements.
 - **Compliance review:** each feature's specification, plan, and tasks MUST be checked against
   this constitution before implementation, and unresolved conflicts MUST be resolved before work
-  begins. Every pull request review verifies compliance; added complexity that violates a
+  begins. Each change is checked for compliance by the maintainer; added complexity that violates a
   principle MUST be explicitly justified or removed.
 - **Runtime guidance:** feature behaviour lives in the briefs under `Docs/features/` and in
   `Docs/design-decisions.md`; the documentation index is `Docs/README.md`. This constitution

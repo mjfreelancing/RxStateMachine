@@ -1,8 +1,10 @@
 # Example Use Cases
 
-These scenarios span the domains consumers actually build. Each maps to concrete features. They are
-the **definition of "most, if not all, business requirements"** — if a new requirement looks like one
-of these, the framework covers it. Feature briefs in [features/](features/) cite these by ID.
+These scenarios span the domains consumers actually build. Each maps to concrete features. Together
+they are the yardstick for **"covers most business requirements"** — if a new requirement looks like
+one of these, the framework covers it. The set is open-ended and grows as use cases are discovered
+([vision.md](vision.md), O5); every one of them ends up with a runnable sample. Feature briefs in
+[features/](features/) cite these by ID.
 
 | #     | Use case                                 | Domain              | Key framework features exercised                                                                                                             |
 | ----- | ---------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |

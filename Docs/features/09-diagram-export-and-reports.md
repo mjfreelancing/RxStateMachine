@@ -7,7 +7,9 @@
 Let developers turn a machine's configuration into documentation: diagrams in Mermaid and D2 text
 formats they can paste into pull requests and docs, and a plain-text report listing states,
 transitions, guards, and actions. Output is deterministic and read-only, and is produced from the
-machine-description data provided by the introspection feature.
+machine-description data provided by the introspection feature. The formats are built on a shared,
+format-neutral structure so that another format can be added later without changing the machine
+description or the existing formatters.
 
 ## Requirements
 - EXP-01 A machine MUST be exportable as Mermaid state-diagram text.
@@ -22,8 +24,12 @@ machine-description data provided by the introspection feature.
 - EXP-08 Mermaid and D2 outputs MUST carry equivalent content.
 - EXP-09 Nested states MUST be rendered as nesting in both formats.
 - EXP-10 Export MUST use only the machine description as its data source (feature 04).
-- EXP-11 Example outputs in the documentation MUST be validated against the formats' own tools in
-  CI.
+- EXP-11 The formatters MUST share a format-neutral structure, so that adding a further format means
+  adding one formatter and changing neither the machine description nor the existing formatters.
+  Mermaid and D2 are both built this way from the start.
+- EXP-12 Output for representative machines MUST be covered by snapshot (golden-file) tests, and a
+  snapshot change MUST be reviewed deliberately. Validating output with the formats' own tools in CI
+  is not required.
 
 ## Edge cases and failure modes
 - EXP-E1 Names containing quotes, brackets, colons, arrows, newlines, or non-Latin characters.
@@ -43,7 +49,8 @@ DD-20.
 
 ## Open questions (for `/speckit-clarify`)
 - Final detail-level content and label wording.
-- Which validators are used for Mermaid and D2 output checks, and how they are obtained in CI.
+- Is the format-neutral seam internal only, or a public extension point for consumers' own formats?
 
 ## Out of scope
-A visual editor, image rendering, and any format other than Mermaid, D2, and plain text.
+A visual editor, image rendering, and delivering any format other than Mermaid, D2, and plain text
+(the design must still allow further formats to be added).
